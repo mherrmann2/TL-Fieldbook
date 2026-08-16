@@ -1,0 +1,1259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TEMS TL">
+<meta name="theme-color" content="#0B0D0F">
+<meta name="robots" content="noindex, nofollow">
+<title>TEMS TL Worksheet — Cape Cod RLEC SWAT</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{
+  --bg:#0B0D0F; --panel:#14171B; --field:#0E1114; --line:#262B31;
+  --txt:#E8EBEE; --dim:#98A2AB; --amber:#FFB020;
+  --red:#FF4747; --grn:#35C46A; --blu:#3AA0FF; --vio:#C77DFF;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+html,body{margin:0; background:var(--bg); color:var(--txt);
+  font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+header.top{position:sticky; top:0; z-index:900; background:rgba(11,13,15,.92);
+  -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line); padding:10px 12px calc(10px);
+  display:flex; align-items:center; gap:10px}
+.tt{flex:1; min-width:0}
+.tt .agency{font-size:10px; letter-spacing:.14em; color:var(--dim); text-transform:uppercase}
+.tt .name{font-size:15px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+button{font:inherit; color:var(--txt); background:var(--field); border:1px solid var(--line);
+  border-radius:9px; padding:10px 14px; min-height:44px; cursor:pointer}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--amber); outline-offset:1px}
+.btn-amber{background:var(--amber); border-color:var(--amber); color:#000; font-weight:800; letter-spacing:.03em}
+.btn-ghost{color:var(--dim)}
+main{max-width:760px; margin:0 auto; padding:10px 12px 90px}
+.sec{border:1px solid var(--line); background:var(--panel); border-radius:12px; overflow:hidden; margin:12px 0}
+.bar{background:#000; color:#fff; font-weight:800; font-size:12px; letter-spacing:.09em;
+  text-transform:uppercase; padding:10px 12px; border-left:4px solid var(--amber)}
+.bar small{color:var(--dim); font-weight:600; letter-spacing:.05em; text-transform:none}
+.bd{padding:12px; display:grid; gap:11px}
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.grid3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px}
+@media(max-width:430px){.grid3{grid-template-columns:1fr 1fr}}
+.fld label{display:block; font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); margin:0 0 5px 1px}
+input[type=text],input[type=date],input[type=time],textarea{
+  width:100%; background:var(--field); border:1px solid var(--line); border-radius:9px;
+  color:var(--txt); font-size:16px; padding:11px 12px; min-height:46px}
+textarea{resize:vertical; min-height:64px; line-height:1.4}
+input::placeholder,textarea::placeholder{color:#5C6670}
+.chips{display:flex; flex-wrap:wrap; gap:8px}
+.chips button{min-height:42px; padding:9px 13px; border-radius:999px; font-size:14px}
+.chips button.on{background:var(--amber); border-color:var(--amber); color:#000; font-weight:800}
+.seg{display:inline-flex; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:var(--field)}
+.seg button{border:0; border-radius:0; min-width:56px; min-height:44px; background:transparent; color:var(--dim); font-weight:700}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{background:var(--amber); color:#000}
+.inline{display:flex; flex-wrap:wrap; align-items:end; gap:10px}
+.inline .fld{flex:1; min-width:130px}
+.inline .fld.tight{flex:0 0 auto; min-width:0}
+.medrow{display:grid; grid-template-columns:26px 1.4fr 1fr; gap:8px; align-items:center}
+.medrow .n{color:var(--dim); font-weight:800; text-align:right; font-size:13px}
+.utname{font-weight:800; font-size:13px; letter-spacing:.06em}
+.utrow{display:grid; gap:8px; padding:10px 0; border-top:1px solid var(--line)}
+.utrow:first-of-type{border-top:0; padding-top:0}
+.pre{font-size:13px; line-height:1.55; color:var(--txt)}
+.pre b{letter-spacing:.02em}
+.pre .dim{color:var(--dim)}
+.mciL{display:flex; flex-wrap:wrap; gap:6px 14px; font-weight:800; font-size:13.5px}
+.mciL span i{font-style:normal; color:var(--amber)}
+.methane div{padding:3px 0; font-size:13.5px}
+.methane b{display:inline-block; width:18px; color:var(--amber)}
+/* map */
+.maptools{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+.maptools input{flex:1; min-width:140px}
+#map{height:330px; border-radius:10px; border:1px solid var(--line); background:#000}
+#shotWrap{display:none}
+#shotCanvas{width:100%; border-radius:10px; border:1px solid var(--line); background:#000; display:block; touch-action:manipulation}
+.mkchips button{font-weight:800}
+.mkchips button.on{color:#000}
+.mkchips button.on[data-val=TGT]{background:var(--red); border-color:var(--red)}
+.mkchips button.on[data-val=CCP]{background:var(--grn); border-color:var(--grn)}
+.mkchips button.on[data-val=AEP]{background:var(--blu); border-color:var(--blu)}
+.mkchips button.on[data-val=STG]{background:var(--amber); border-color:var(--amber)}
+.mkchips button.on[data-val=LZ]{background:var(--vio); border-color:var(--vio)}
+.mklist{display:grid; gap:8px}
+.mkitem{display:grid; grid-template-columns:52px 1fr 44px; gap:8px; align-items:center}
+.mkbadge{font-weight:800; font-size:12px; text-align:center; color:#fff; border-radius:6px; padding:8px 0; border:1px solid #000}
+.b-TGT{background:var(--red)} .b-CCP{background:var(--grn)} .b-AEP{background:var(--blu)}
+.b-STG{background:var(--amber); color:#000} .b-LZ{background:var(--vio)}
+.mk{font-weight:800; font-size:10px; color:#fff; border-radius:4px; border:1.5px solid #000;
+  text-align:center; line-height:15px; box-shadow:0 1px 3px rgba(0,0,0,.6)}
+.mk-TGT{background:var(--red)} .mk-CCP{background:var(--grn)} .mk-AEP{background:var(--blu)}
+.mk-STG{background:var(--amber); color:#000} .mk-LZ{background:var(--vio)}
+.hint{font-size:12px; color:var(--dim)}
+#toast{position:fixed; left:50%; bottom:18px; transform:translateX(-50%); background:#000; color:#fff;
+  border:1px solid var(--line); border-radius:999px; padding:10px 18px; font-size:13.5px; z-index:1200;
+  opacity:0; pointer-events:none; transition:opacity .2s; max-width:90vw; text-align:center}
+#toast.show{opacity:1}
+@media (prefers-reduced-motion: reduce){#toast{transition:none}}
+.storenote{margin:10px 0 2px; padding:9px 12px; border:1px solid var(--amber); color:var(--amber); border-radius:10px; font-size:12px}
+.opspanel{background:var(--panel); border:1px solid var(--line); border-radius:12px; margin:12px 0; overflow:hidden}
+.opspanel summary{cursor:pointer; min-height:44px; display:flex; align-items:center; padding:0 12px;
+  color:var(--dim); font-weight:800; font-size:12px; letter-spacing:.08em; text-transform:uppercase}
+.filelbl{display:inline-flex; align-items:center; justify-content:center; font:inherit; color:var(--txt);
+  background:var(--field); border:1px solid var(--line); border-radius:9px; padding:10px 14px; min-height:44px; cursor:pointer}
+.saveitem{display:grid; grid-template-columns:1fr auto auto; gap:8px; align-items:center;
+  background:var(--field); border:1px solid var(--line); border-radius:9px; padding:8px 10px}
+.saveitem .nm{font-weight:700; font-size:14px}
+.saveitem .ts{color:var(--dim); font-size:11px}
+footer{max-width:760px; margin:0 auto; padding:0 14px 30px; font-size:11px; color:var(--dim); text-align:center}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="tt">
+    <div class="agency">Cape Cod RLEC SWAT</div>
+    <div class="name">TEMS TL — Tactical Worksheet</div>
+  </div>
+  <button class="btn-ghost" id="btnReset">Reset</button>
+  <button class="btn-amber" id="btnPdf">Export PDF</button>
+</header>
+
+<main>
+
+<div id="storeNote" class="storenote" hidden>Preview mode — autosave is blocked inside this viewer. Open the app from a hosted link or a Home-Screen install and saves persist on-device.</div>
+
+<details class="opspanel" id="opsPanel">
+  <summary>Ops — save · open · backup</summary>
+  <div class="bd" style="padding-top:8px">
+    <div class="inline">
+      <div class="fld"><label>Op name</label><input type="text" id="opName" placeholder="e.g. Yarmouth warrant 0816"></div>
+      <div class="fld tight"><label>&nbsp;</label><button id="btnSaveOp">Save op</button></div>
+    </div>
+    <div class="mklist" id="saveList"></div>
+    <div class="inline">
+      <button id="btnBackup">Backup file (JSON)</button>
+      <label class="filelbl">Restore backup<input type="file" id="restoreFile" accept=".json,application/json" hidden></label>
+    </div>
+    <div class="hint">Autosave runs continuously on this device. Backup files go out the share sheet — save them to Google Drive or Files.</div>
+  </div>
+</details>
+
+<section class="sec"><div class="bar">Operation</div><div class="bd">
+  <div class="grid2">
+    <div class="fld"><label>Date</label><input type="date" data-k="date"></div>
+    <div class="fld"><label>Brief time</label><input type="time" data-k="brief"></div>
+    <div class="fld"><label>Sunrise</label><input type="time" data-k="sunrise"></div>
+    <div class="fld"><label>Sunset</label><input type="time" data-k="sunset"></div>
+  </div>
+  <div class="inline">
+    <div class="fld"><label>Weather</label><input type="text" data-k="weather" placeholder="Temp, wind, precip"></div>
+    <div class="fld tight"><label>&nbsp;</label><button id="btnWx">Auto WX</button></div>
+  </div>
+  <div class="fld"><label>Op type</label>
+    <div class="chips" data-m="optype">
+      <button data-val="Warrant">Warrant</button>
+      <button data-val="Barricade">Barricade</button>
+      <button data-val="Hostage">Hostage</button>
+      <button data-val="High-Risk Arrest">High-Risk Arrest</button>
+      <button data-val="Other">Other</button>
+    </div>
+  </div>
+  <div class="fld" id="othWrap" style="display:none"><label>Other — specify</label><input type="text" data-k="optypeOther"></div>
+  <div class="fld"><label>Operation location</label><input type="text" data-k="oploc" placeholder="Address / target"></div>
+</div></section>
+
+<section class="sec"><div class="bar">Key Locations</div><div class="bd">
+  <div class="grid2">
+    <div class="fld"><label>CCP — primary</label><input type="text" data-k="ccp1"></div>
+    <div class="fld"><label>AEP — primary</label><input type="text" data-k="aep1"></div>
+    <div class="fld"><label>CCP — alternate</label><input type="text" data-k="ccp2"></div>
+    <div class="fld"><label>AEP — alternate</label><input type="text" data-k="aep2"></div>
+  </div>
+  <div class="inline">
+    <div class="fld"><label>TEMS staging</label><input type="text" data-k="staging"></div>
+    <div class="fld tight"><label>CCP cover / security verified</label>
+      <div class="seg" data-k="ccpcov"><button data-val="Y">Y</button><button data-val="N">N</button></div>
+    </div>
+  </div>
+</div></section>
+
+<section class="sec"><div class="bar">Scene Hazards &amp; Occupant Medical Intel</div><div class="bd">
+  <div class="fld"><label>Scene hazards (weather / animals / drugs / structure)</label>
+    <textarea data-k="hazards" rows="2"></textarea></div>
+  <div class="fld"><label>Hazard flags</label>
+    <div class="chips" data-m="hazchips">
+      <button data-val="Suspected traps">Suspected traps</button>
+      <button data-val="Drugs on scene">Drugs on scene</button>
+    </div>
+  </div>
+  <div class="fld"><label>Occupants</label>
+    <div class="chips" data-m="occ">
+      <button data-val="Children">Children</button>
+      <button data-val="Elderly">Elderly</button>
+      <button data-val="Pregnant">Pregnant</button>
+      <button data-val="Medical conditions">Medical conditions</button>
+    </div>
+  </div>
+  <div class="inline">
+    <div class="fld tight"><label>HAZMAT flag (fentanyl / lab)</label>
+      <div class="seg" data-k="hazmat"><button data-val="Y">Y</button><button data-val="N">N</button></div>
+    </div>
+    <div class="fld"><label>Details</label><input type="text" data-k="hazdet"></div>
+  </div>
+</div></section>
+
+<section class="sec"><div class="bar">Team Roster <small>· tap who's on — fills slots below · not printed</small></div><div class="bd">
+  <div class="chips roster" id="rosterChips"></div>
+  <details>
+    <summary class="hint" style="cursor:pointer; min-height:32px; display:flex; align-items:center">Edit roster — add / remove, saved on this device</summary>
+    <div class="mklist" id="rosterEdit" style="margin-top:8px"></div>
+    <div class="inline" style="margin-top:8px">
+      <div class="fld"><label>New member</label><input type="text" id="newMedic" placeholder="Name (tag optional)"></div>
+      <div class="fld tight"><label>&nbsp;</label><button id="btnAddMedic">Add</button></div>
+    </div>
+  </details>
+</div></section>
+
+<section class="sec"><div class="bar">TEMS Personnel &amp; Whole Blood</div><div class="bd">
+  <div id="medics" style="display:grid; gap:8px"></div>
+  <div class="fld"><label>Specialty resources on scene</label><input type="text" data-k="specialty"></div>
+  <div class="grid3">
+    <div class="fld"><label>WB carrier</label><input type="text" data-k="wbcarrier"></div>
+    <div class="fld"><label>WB cooler location</label><input type="text" data-k="wbcooler"></div>
+    <div class="fld"><label>Admin medic (Hyannis)</label><input type="text" data-k="wbadmin"></div>
+  </div>
+</div></section>
+
+<section class="sec"><div class="bar">Fire Plan</div><div class="bd">
+  <div class="inline">
+    <div class="fld tight"><label>Fire-as-weapon indicators</label>
+      <div class="seg" data-k="faw"><button data-val="Y">Y</button><button data-val="N">N</button></div>
+    </div>
+    <div class="fld"><label>Detail</label><input type="text" data-k="fawdet" placeholder="Accelerants known / threatened"></div>
+  </div>
+  <div class="inline">
+    <div class="fld tight"><label>FD attack line staged</label>
+      <div class="seg" data-k="fdline"><button data-val="Y">Y</button><button data-val="N">N</button></div>
+    </div>
+    <div class="fld"><label>Location</label><input type="text" data-k="fdlineloc"></div>
+  </div>
+  <div class="fld"><label>Fire evacuation signal</label><input type="text" data-k="firesig"></div>
+  <div class="fld"><label>Burn / smoke casualty &amp; decon plan</label><input type="text" data-k="burnplan"></div>
+</div></section>
+
+<section class="sec"><div class="bar">Utilities Plan <small>· shutoffs via fire alarm / FD command</small></div><div class="bd">
+  <div id="utils"></div>
+  <div class="inline">
+    <div class="fld tight"><label>Shutoff request passed to fire alarm / FD</label>
+      <div class="seg" data-k="utreq"><button data-val="Y">Y</button><button data-val="N">N</button></div>
+    </div>
+    <div class="fld tight"><label>Time</label><input type="time" data-k="utreqtime" style="min-width:120px"></div>
+  </div>
+</div></section>
+
+<section class="sec"><div class="bar">MCI Reference <small>· MA EMS MCI Plan — Region 5</small></div><div class="bd">
+  <div class="mciL">
+    <span><i>1:</i> 1–10</span><span><i>2:</i> 11–30</span><span><i>3:</i> 31–50</span>
+    <span><i>4:</i> 51–200</span><span><i>5:</i> 200+</span><span><i>6:</i> Extended ops</span>
+    <span class="dim" style="font-weight:600">(potential victims)</span>
+  </div>
+  <div class="inline">
+    <div class="fld tight"><label>MCI declared</label>
+      <div class="seg" data-k="mci"><button data-val="Y">Y</button><button data-val="N">N</button></div>
+    </div>
+    <div class="fld tight"><label>Level</label><input type="text" data-k="mcilevel" inputmode="numeric" style="width:80px"></div>
+    <div class="fld tight"><label>Time</label><input type="time" data-k="mcitime" style="min-width:120px"></div>
+  </div>
+  <div class="methane">
+    <div><b>M</b> Major incident declared</div>
+    <div><b>E</b> Exact location + staging</div>
+    <div><b>T</b> Type of incident</div>
+    <div><b>H</b> Hazards present / potential</div>
+    <div><b>A</b> Access / egress routes</div>
+    <div><b>N</b> Numbers — casualties, dead &amp; injured</div>
+    <div><b>E</b> Emergency services on scene / required</div>
+  </div>
+</div></section>
+
+<section class="sec"><div class="bar">Comms</div><div class="bd">
+  <div class="grid3">
+    <div class="fld"><label>Primary</label><input type="text" data-k="comm1" class="mono"></div>
+    <div class="fld"><label>Backup</label><input type="text" data-k="comm2" class="mono"></div>
+    <div class="fld"><label>Local FD channel</label><input type="text" data-k="commfd" class="mono"></div>
+  </div>
+</div></section>
+
+<section class="sec"><div class="bar">Local Fire Department</div><div class="bd">
+  <div class="grid2">
+    <div class="fld"><label>Department</label><input type="text" data-k="fddept"></div>
+    <div class="fld"><label>Point of contact</label><input type="text" data-k="fdpoc"></div>
+  </div>
+  <div class="fld"><label>Radio channel / phone</label><input type="text" data-k="fdradio" class="mono"></div>
+  <div class="inline">
+    <div class="fld tight"><label>Notified</label>
+      <div class="seg" data-k="fdnot"><button data-val="Y">Y</button><button data-val="N">N</button></div></div>
+    <div class="fld tight"><label>Briefed</label>
+      <div class="seg" data-k="fdbrf"><button data-val="Y">Y</button><button data-val="N">N</button></div></div>
+    <div class="fld tight"><label>Staging</label>
+      <div class="seg" data-k="fdstg"><button data-val="Y">Y</button><button data-val="N">N</button></div></div>
+    <div class="fld"><label>Staging location</label><input type="text" data-k="fdstgloc"></div>
+  </div>
+</div></section>
+
+<section class="sec"><div class="bar">Scene Map <small>· plot TGT · CCP · AEP · STG · LZ</small></div><div class="bd">
+  <div class="seg" data-k="mapmode" id="mapModeSeg">
+    <button data-val="live" class="on">Live satellite</button>
+    <button data-val="shot">Screenshot</button>
+  </div>
+  <div id="liveWrap">
+    <div class="maptools" style="margin-bottom:9px">
+      <input type="text" id="addr" placeholder="Search address" autocomplete="off">
+      <button id="btnGo">Go</button>
+      <button id="btnLoc" title="Use my location">◎</button>
+    </div>
+    <div id="map"></div>
+  </div>
+  <div id="shotWrap">
+    <div class="maptools" style="margin-bottom:9px">
+      <input type="file" id="shotFile" accept="image/*" style="flex:1; color:var(--dim)">
+    </div>
+    <canvas id="shotCanvas" height="10"></canvas>
+    <div class="hint" id="shotHint" style="margin-top:6px">Screenshot your maps app, load it here, then tap to plot. Works with zero signal.</div>
+  </div>
+  <div class="fld" style="margin-top:2px"><label>Marker tool — select, then tap map</label>
+    <div class="chips mkchips" data-m="tool" id="toolChips">
+      <button data-val="TGT">TGT</button><button data-val="CCP">CCP</button>
+      <button data-val="AEP">AEP</button><button data-val="STG">STG</button>
+      <button data-val="LZ">LZ</button>
+    </div>
+  </div>
+  <div class="mklist" id="mklist"></div>
+  <div class="hint">Drag markers to adjust · labels print on the PDF legend · imagery: Esri</div>
+</div></section>
+
+<section class="sec"><div class="bar">Aeromedical — Boston MedFlight</div><div class="bd">
+  <div class="pre"><b>Request via local FD dispatch or Barnstable County Control</b></div>
+  <div class="grid2">
+    <div class="fld"><label>LZ location</label><input type="text" data-k="lzloc"></div>
+    <div class="fld"><label>LZ hazards</label><input type="text" data-k="lzhaz"></div>
+  </div>
+</div></section>
+
+<section class="sec"><div class="bar">K9 Emergencies</div><div class="bd">
+  <div class="grid2">
+    <div class="fld"><label>Primary K9 / handler</label><input type="text" data-k="k91"></div>
+    <div class="fld"><label>Secondary K9 / handler</label><input type="text" data-k="k92"></div>
+  </div>
+  <div class="inline">
+    <div class="fld tight"><label>FD briefed for K9 response</label>
+      <div class="seg" data-k="k9fd"><button data-val="Y">Y</button><button data-val="N">N</button></div></div>
+  </div>
+  <div class="pre">
+    <b>VET: Kevin Smith (Hyannis Animal Hospital) <span class="mono">(802) 598-7105</span> — call for all K9 emergencies</b><br>
+    <span class="dim">Transport: Hyannis Animal Hospital <span class="mono">(508) 775-4521</span> · CC Vet Specialists, Buzzards Bay — 24 HR <span class="mono">(508) 759-5125</span> · CC Vet Specialists, S. Dennis <span class="mono">(508) 398-7575</span></span>
+  </div>
+</div></section>
+
+<section class="sec"><div class="bar">Extended Operations</div><div class="bd">
+  <div class="grid3">
+    <div class="fld"><label>Rehab area</label><input type="text" data-k="rehab"></div>
+    <div class="fld"><label>Hydration / resupply</label><input type="text" data-k="hydr"></div>
+    <div class="fld"><label>Relief cycle</label><input type="text" data-k="relief"></div>
+  </div>
+</div></section>
+
+<section class="sec"><div class="bar">Medical Facilities <small>· pre-printed</small></div><div class="bd pre">
+  <b>RECORDED MED CONTROL: <span class="mono">(508) 564-7822</span></b><br><br>
+  <b>CAPE COD HOSPITAL</b> — 27 Park St, Hyannis<br>
+  <b>FALMOUTH HOSPITAL</b> — 100 Ter Heun Dr, Falmouth<br><br>
+  <b>TRAUMA — SOUTH SHORE HOSPITAL · Level 2</b><br>
+  <span class="dim">55 Fogg Rd, South Weymouth · <span class="mono">(781) 624-8000</span></span><br>
+  <b>TRAUMA — RHODE ISLAND HOSPITAL · Level 1 · Pedi · Burns</b><br>
+  <span class="dim">80 Dudley St, Providence · <span class="mono">(401) 444-5411</span></span><br>
+  <b>TRAUMA — MASS GENERAL · Level 1 · Burns</b><br>
+  <span class="dim">55 Fruit St, Boston · <span class="mono">(617) 724-4100</span></span>
+</div></section>
+
+<section class="sec"><div class="bar">Command Structure</div><div class="bd">
+  <div class="grid2">
+    <div class="fld"><label>TEMS TL</label><input type="text" data-k="temstl"></div>
+    <div class="fld"><label>Tactical commander</label><input type="text" data-k="taccom"></div>
+  </div>
+</div></section>
+
+</main>
+<footer>Cape Cod RLEC SWAT · TEMS TL Tactical Worksheet · rev AUG 2026 · data stays on this device until you export · verify pre-printed reference data annually</footer>
+<div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+"use strict";
+/* ============ state ============ */
+const S = { v:{}, multi:{ optype:new Set(), occ:new Set(), hazchips:new Set() }, tool:null,
+            mapMode:"live", markers:[], shot:null, mid:0 };
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const MK = { TGT:"#FF4747", CCP:"#35C46A", AEP:"#3AA0FF", STG:"#FFB020", LZ:"#C77DFF" };
+
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show");
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),2600); }
+
+/* ============ build dynamic rows ============ */
+(function buildMedics(){
+  const host=$("#medics");
+  for(let i=1;i<=10;i++){
+    const row=document.createElement("div"); row.className="medrow";
+    row.innerHTML='<div class="n">'+i+'.</div>'+
+      '<input type="text" data-k="med'+i+'n" placeholder="Medic">'+
+      '<input type="text" data-k="med'+i+'a" placeholder="Assignment">';
+    host.appendChild(row);
+  }
+})();
+(function buildUtils(){
+  const host=$("#utils");
+  [["g","GAS"],["e","ELECTRIC"],["w","WATER"]].forEach(function(u){
+    const k=u[0], name=u[1];
+    const row=document.createElement("div"); row.className="utrow";
+    row.innerHTML='<div class="utname">'+name+'</div>'+
+      '<div class="inline">'+
+      '<div class="fld tight"><label>Status</label><div class="seg" data-k="ut_'+k+'_s">'+
+        '<button data-val="On">On</button><button data-val="Off">Off</button><button data-val="Unk">Unk</button></div></div>'+
+      '<div class="fld tight"><label>Decision</label><div class="seg" data-k="ut_'+k+'_d">'+
+        '<button data-val="Leave on">Leave on</button><button data-val="Kill pre-assault">Kill pre-assault</button><button data-val="Kill on-order">Kill on-order</button></div></div>'+
+      '</div>'+
+      '<div class="fld"><label>Shutoff location (if known)</label><input type="text" data-k="ut_'+k+'_loc"></div>';
+    host.appendChild(row);
+  });
+})();
+
+/* ============ bindings ============ */
+document.addEventListener("input", function(e){
+  const k=e.target.getAttribute&&e.target.getAttribute("data-k");
+  if(k){ S.v[k]=e.target.value; touch(); if(/^med\d+n$/.test(k)) renderRosterChips(); }
+});
+document.addEventListener("click", function(e){
+  const b=e.target.closest("button[data-val]"); if(!b) return;
+  const seg=b.closest(".seg"), chips=b.closest(".chips");
+  if(seg && seg.id==="mapModeSeg"){ setMapMode(b.getAttribute("data-val")); markSeg(seg,b,true); return; }
+  if(seg){
+    const k=seg.getAttribute("data-k"), val=b.getAttribute("data-val");
+    if(S.v[k]===val){ S.v[k]=""; markSeg(seg,null,false); }
+    else{ S.v[k]=val; markSeg(seg,b,false); }
+    touch(); return;
+  }
+  if(chips){
+    const m=chips.getAttribute("data-m"), val=b.getAttribute("data-val");
+    if(m==="tool"){
+      S.tool = (S.tool===val? null : val);
+      $$("#toolChips button").forEach(x=>x.classList.toggle("on", x.getAttribute("data-val")===S.tool));
+      return;
+    }
+    const set=S.multi[m]; if(set.has(val)) set.delete(val); else set.add(val);
+    b.classList.toggle("on", set.has(val));
+    if(m==="optype") $("#othWrap").style.display = set.has("Other") ? "" : "none";
+    touch();
+  }
+});
+function markSeg(seg, onBtn, force){
+  seg.querySelectorAll("button").forEach(x=>x.classList.toggle("on", x===onBtn || (force&&x===onBtn)));
+}
+
+/* ============ live map ============ */
+let map=null;
+const TILE="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+function initMap(){
+  map=L.map("map",{zoomSnap:1, zoomControl:true}).setView([41.68,-70.33],11);
+  L.tileLayer(TILE,{maxZoom:19, crossOrigin:"anonymous", attribution:"Esri World Imagery"}).addTo(map);
+  map.on("click", function(ev){
+    if(!S.tool) return;
+    addLiveMarker(S.tool, ev.latlng.lat, ev.latlng.lng);
+  });
+}
+function mkIcon(type){
+  return L.divIcon({className:"", html:'<div class="mk mk-'+type+'">'+type+'</div>',
+    iconSize:[34,19], iconAnchor:[17,9]});
+}
+function addLiveMarker(type, lat, lng, label){
+  const id=++S.mid;
+  const lm=L.marker([lat,lng],{icon:mkIcon(type), draggable:true}).addTo(map);
+  const rec={id:id, mode:"live", type:type, lat:lat, lng:lng, label:label||"", lm:lm};
+  lm.on("dragend", function(){ const p=lm.getLatLng(); rec.lat=p.lat; rec.lng=p.lng; touch(); });
+  S.markers.push(rec); renderMk(); touch();
+}
+$("#btnGo").addEventListener("click", doSearch);
+$("#addr").addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); doSearch(); }});
+function doSearch(){
+  const q=$("#addr").value.trim(); if(!q) return;
+  toast("Searching…");
+  fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q="+encodeURIComponent(q))
+    .then(r=>r.json())
+    .then(function(res){
+      if(res && res[0]){ map.setView([+res[0].lat, +res[0].lon], 18); mapMoved=true; touch(); toast("Found"); }
+      else toast("No match — try adding town / state");
+    })
+    .catch(()=>toast("Search failed — check signal"));
+}
+$("#btnLoc").addEventListener("click", function(){
+  if(!navigator.geolocation){ toast("Location unavailable"); return; }
+  navigator.geolocation.getCurrentPosition(
+    p=>{ map.setView([p.coords.latitude,p.coords.longitude],18); mapMoved=true; touch(); },
+    ()=>toast("Location denied — search the address instead"),
+    {enableHighAccuracy:true, timeout:8000});
+});
+
+/* ============ screenshot mode ============ */
+const cv=$("#shotCanvas"), cx=cv.getContext("2d");
+$("#shotFile").addEventListener("change", function(e){
+  const f=e.target.files && e.target.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=function(){ const img=new Image();
+    img.onload=function(){ S.shot={img:img,w:img.naturalWidth,h:img.naturalHeight}; S.shotURL=rd.result; drawShot(); touch(); };
+    img.src=rd.result; };
+  rd.readAsDataURL(f);
+});
+function drawShot(){
+  if(!S.shot){ cv.height=10; return; }
+  const maxW=1600, sc=Math.min(1, maxW/S.shot.w);
+  cv.width=Math.round(S.shot.w*sc); cv.height=Math.round(S.shot.h*sc);
+  cx.drawImage(S.shot.img,0,0,cv.width,cv.height);
+  S.markers.filter(m=>m.mode==="shot").forEach(function(m){
+    drawBadge(cx, m.rx*cv.width, m.ry*cv.height, m.type, m.label, Math.max(14, cv.width*0.022));
+  });
+}
+cv.addEventListener("click", function(e){
+  if(!S.shot){ toast("Load a screenshot first"); return; }
+  if(!S.tool){ toast("Select a marker tool"); return; }
+  const r=cv.getBoundingClientRect();
+  const rx=(e.clientX-r.left)/r.width, ry=(e.clientY-r.top)/r.height;
+  S.markers.push({id:++S.mid, mode:"shot", type:S.tool, rx:rx, ry:ry, label:""});
+  drawShot(); renderMk(); touch();
+});
+function setMapMode(mode){
+  S.mapMode=mode;
+  $("#liveWrap").style.display = mode==="live" ? "" : "none";
+  $("#shotWrap").style.display = mode==="shot" ? "" : "none";
+  if(mode==="live" && map) setTimeout(()=>map.invalidateSize(),60);
+  renderMk(); touch();
+}
+
+/* ============ marker list ============ */
+function renderMk(){
+  const host=$("#mklist"); host.innerHTML="";
+  S.markers.filter(m=>m.mode===S.mapMode).forEach(function(m){
+    const row=document.createElement("div"); row.className="mkitem";
+    row.innerHTML='<div class="mkbadge b-'+m.type+'">'+m.type+'</div>'+
+      '<input type="text" placeholder="Label (prints on PDF)" value="'+escHtml(m.label)+'">'+
+      '<button aria-label="Delete">✕</button>';
+    row.querySelector("input").addEventListener("input", ev=>{ m.label=ev.target.value; if(m.mode==="shot") drawShot(); touch(); });
+    row.querySelector("button").addEventListener("click", function(){
+      if(m.lm && map) map.removeLayer(m.lm);
+      S.markers=S.markers.filter(x=>x.id!==m.id);
+      if(m.mode==="shot") drawShot();
+      renderMk(); touch();
+    });
+    host.appendChild(row);
+  });
+}
+function escHtml(s){ return String(s||"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+/* badge painter shared by canvas + capture */
+function drawBadge(ctx, x, y, type, label, h){
+  h=h||16; const w=h*2.1;
+  ctx.save();
+  ctx.fillStyle=MK[type]; ctx.strokeStyle="#000"; ctx.lineWidth=Math.max(1.5,h*0.1);
+  rr(ctx, x-w/2, y-h/2, w, h, h*0.22); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = (type==="STG") ? "#000" : "#fff";
+  ctx.font="700 "+(h*0.62)+"px -apple-system,Helvetica,Arial,sans-serif";
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.fillText(type, x, y+h*0.03);
+  if(label){
+    ctx.font="700 "+(h*0.66)+"px -apple-system,Helvetica,Arial,sans-serif";
+    ctx.lineWidth=h*0.22; ctx.strokeStyle="rgba(0,0,0,.85)"; ctx.lineJoin="round";
+    ctx.strokeText(label, x, y+h*1.05); ctx.fillStyle="#fff"; ctx.fillText(label, x, y+h*1.05);
+  }
+  ctx.restore();
+}
+function rr(ctx,x,y,w,h,r){ ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+/* ============ map capture for PDF ============ */
+function loadImg(src){ return new Promise(function(res,rej){
+  const im=new Image(); im.crossOrigin="anonymous";
+  im.onload=()=>res(im); im.onerror=rej; im.src=src; }); }
+
+async function captureMap(){
+  if(S.mapMode==="shot"){
+    if(!S.shot) return null;
+    const c=document.createElement("canvas"); c.width=cv.width; c.height=cv.height;
+    const g=c.getContext("2d"); g.drawImage(S.shot.img,0,0,c.width,c.height);
+    S.markers.filter(m=>m.mode==="shot").forEach(m=>drawBadge(g, m.rx*c.width, m.ry*c.height, m.type, m.label, Math.max(15,c.width*0.024)));
+    northArrow(g, c.width, c.height);
+    return {url:c.toDataURL("image/jpeg",0.88), w:c.width, h:c.height};
+  }
+  if(!map) return null;
+  const size=map.getSize(), z=map.getZoom(), pb=map.getPixelBounds();
+  const scale=2, TS=256;
+  const c=document.createElement("canvas"); c.width=size.x*scale; c.height=size.y*scale;
+  const g=c.getContext("2d"); g.scale(scale,scale);
+  g.fillStyle="#111"; g.fillRect(0,0,size.x,size.y);
+  const x0=Math.floor(pb.min.x/TS), x1=Math.floor(pb.max.x/TS);
+  const y0=Math.floor(pb.min.y/TS), y1=Math.floor(pb.max.y/TS);
+  const jobs=[]; let ok=0;
+  for(let tx=x0;tx<=x1;tx++) for(let ty=y0;ty<=y1;ty++){
+    const url=TILE.replace("{z}",z).replace("{x}",tx).replace("{y}",ty);
+    jobs.push(loadImg(url).then(function(im){
+      g.drawImage(im, tx*TS-pb.min.x, ty*TS-pb.min.y, TS, TS); ok++;
+    }).catch(function(){}));
+  }
+  await Promise.all(jobs);
+  if(!ok) return null;
+  S.markers.filter(m=>m.mode==="live").forEach(function(m){
+    const p=map.project([m.lat,m.lng], z);
+    drawBadge(g, p.x-pb.min.x, p.y-pb.min.y, m.type, m.label, 17);
+  });
+  northArrow(g, size.x, size.y);
+  g.fillStyle="rgba(0,0,0,.55)"; g.fillRect(0,size.y-11,86,11);
+  g.fillStyle="#fff"; g.font="8px Helvetica,Arial"; g.textAlign="left"; g.textBaseline="middle";
+  g.fillText("Imagery: Esri", 4, size.y-5.5);
+  return {url:c.toDataURL("image/jpeg",0.88), w:size.x, h:size.y};
+}
+function northArrow(g,w,h){
+  const x=w-22, y=16, s=Math.max(10, w*0.012);
+  g.save(); g.strokeStyle="#000"; g.fillStyle="#fff"; g.lineWidth=s*0.35; g.lineJoin="round";
+  g.beginPath(); g.moveTo(x,y-s); g.lineTo(x-s*0.6,y+s*0.7); g.lineTo(x+s*0.6,y+s*0.7); g.closePath();
+  g.stroke(); g.fill();
+  g.font="700 "+(s*1.1)+"px Helvetica,Arial"; g.textAlign="center"; g.textBaseline="top";
+  g.lineWidth=s*0.4; g.strokeText("N", x, y+s*0.9); g.fillText("N", x, y+s*0.9);
+  g.restore();
+}
+
+/* ============ PDF ============ */
+const PM=26, PW=560, LH=17, BAR=13, PAD=5, PAGE_W=612, PAGE_H=792;
+function v(k){ return (S.v[k]||"").trim(); }
+function segv(k){ return S.v[k]||""; }
+function fmtDate(s){ if(!s) return ""; const p=s.split("-"); return p.length===3 ? (+p[1])+"/"+(+p[2])+"/"+p[0] : s; }
+
+function pdfHelpers(doc){
+  const H={};
+  H.lab=function(x,y,t,size,bold){
+    doc.setFont("helvetica", bold?"bold":"normal"); doc.setFontSize(size||8);
+    doc.setTextColor(0); doc.text(t,x,y); return x+doc.getTextWidth(t);
+  };
+  H.dimlab=function(x,y,t,size){
+    doc.setFont("helvetica","normal"); doc.setFontSize(size||7);
+    doc.setTextColor(110); doc.text(t,x,y); const w=doc.getTextWidth(t); doc.setTextColor(0); return x+w;
+  };
+  H.tf=function(x,y,w,val){
+    doc.setDrawColor(115); doc.setLineWidth(0.6); doc.line(x,y+2.5,x+w,y+2.5); doc.setDrawColor(0);
+    val=(val||"").trim();
+    if(val){
+      let size=8; doc.setFont("helvetica","normal");
+      doc.setFontSize(size);
+      while(doc.getTextWidth(val)>w-4 && size>6){ size-=0.5; doc.setFontSize(size); }
+      while(doc.getTextWidth(val)>w-4 && val.length>1){ val=val.slice(0,-2)+"…"; }
+      doc.setTextColor(0); doc.text(val, x+2, y);
+    }
+    return x+w;
+  };
+  H.cb=function(x,y,checked){
+    doc.setLineWidth(1); doc.rect(x,y-8,10,10);
+    if(checked){ doc.setLineWidth(1.2); doc.line(x+2,y-6,x+8,y); doc.line(x+8,y-6,x+2,y); }
+    return x+10;
+  };
+  H.opt=function(x,y,label,checked,gap){
+    x=H.cb(x,y,checked); x=H.lab(x+2.5,y,label,8,false); return x+(gap===undefined?9:gap);
+  };
+  H.yn=function(x,y,val){
+    x=H.opt(x,y,"Y",val==="Y",6); x=H.opt(x,y,"N",val==="N",9); return x;
+  };
+  H.sec=function(yTop,title,nRows,rowH,extra){
+    rowH=rowH||LH; extra=extra||0;
+    const h=BAR+nRows*rowH+PAD+extra;
+    doc.setLineWidth(1.1); doc.setDrawColor(0); doc.rect(PM,yTop,PW,h);
+    doc.setFillColor(0,0,0); doc.rect(PM,yTop,PW,BAR,"F");
+    doc.setTextColor(255); doc.setFont("helvetica","bold"); doc.setFontSize(8.5);
+    doc.text(title, PM+5, yTop+9.5); doc.setTextColor(0);
+    const rows=[]; for(let i=0;i<nRows;i++) rows.push(yTop+BAR+(i+1)*rowH-5);
+    return {bottom:yTop+h, r:rows};
+  };
+  H.header=function(pageLabel){
+    doc.setTextColor(0);
+    doc.setFont("helvetica","bold"); doc.setFontSize(11);
+    doc.text("CAPE COD REGIONAL LAW ENFORCEMENT COUNCIL SWAT", PAGE_W/2, 34, {align:"center"});
+    doc.setFontSize(14);
+    doc.text("TEMS TEAM LEADER — TACTICAL WORKSHEET", PAGE_W/2, 51, {align:"center"});
+    doc.setFont("helvetica","normal"); doc.setFontSize(7.5); doc.setTextColor(110);
+    doc.text(pageLabel, PAGE_W/2, 62, {align:"center"}); doc.setTextColor(0);
+    return 70;
+  };
+  H.footer=function(){
+    doc.setFont("helvetica","normal"); doc.setFontSize(6); doc.setTextColor(110);
+    doc.text("Cape Cod RLEC SWAT  •  TEMS TL Tactical Worksheet  •  rev AUG 2026  •  verify pre-printed reference data annually",
+      PAGE_W/2, PAGE_H-14, {align:"center"});
+    doc.setTextColor(0);
+  };
+  H.sym=function(kind,x,y,s){
+    s=s||4.5; doc.setFillColor(0); doc.setDrawColor(0); doc.setLineWidth(1);
+    if(kind==="tri") doc.triangle(x,y-s,x-s,y+s,x+s,y+s,"F");
+    else if(kind==="circle") doc.circle(x,y,s,"F");
+    else if(kind==="square") doc.rect(x-s,y-s,2*s,2*s,"F");
+    else if(kind==="diamond"){ doc.lines([[s,s],[-s,s],[-s,-s],[s,-s]], x, y-s, [1,1], "F", true); }
+    else if(kind==="cross"){ doc.setLineWidth(2.2); doc.line(x-s,y,x+s,y); doc.line(x,y-s,x,y+s); doc.setLineWidth(1); }
+  };
+  return H;
+}
+
+function buildPdf(mapCap){
+  const jsPDF = window.jspdf.jsPDF;
+  const doc = new jsPDF({unit:"pt", format:"letter"});
+  doc.setProperties({title:"TEMS Team Leader Tactical Worksheet"});
+  const H=pdfHelpers(doc);
+  const half=PM+PW/2;
+  let y, s, x;
+
+  /* ---------- PAGE 1 ---------- */
+  y=H.header("Page 1 of 2 — Operational  |  Completed digitally via TEMS TL app");
+
+  s=H.sec(y,"OPERATION",3);
+  x=H.lab(PM+5,s.r[0],"Date:"); x=H.tf(x+3,s.r[0],62,fmtDate(v("date")));
+  x=H.lab(x+8,s.r[0],"Brief Time:"); x=H.tf(x+3,s.r[0],48,v("brief"));
+  x=H.lab(x+8,s.r[0],"Sunrise:"); x=H.tf(x+3,s.r[0],42,v("sunrise"));
+  x=H.lab(x+8,s.r[0],"Sunset:"); x=H.tf(x+3,s.r[0],42,v("sunset"));
+  x=H.lab(x+8,s.r[0],"Weather:"); H.tf(x+3,s.r[0],PM+PW-x-8,v("weather"));
+  x=H.lab(PM+5,s.r[1],"Op Type:",8,true); x+=4;
+  ["Warrant","Barricade","Hostage","High-Risk Arrest"].forEach(function(t){ x=H.opt(x,s.r[1],t,S.multi.optype.has(t)); });
+  x=H.opt(x,s.r[1],"Other:",S.multi.optype.has("Other"));
+  H.tf(x,s.r[1],PM+PW-x-8, S.multi.optype.has("Other")?v("optypeOther"):"");
+  x=H.lab(PM+5,s.r[2],"Operation Location:"); H.tf(x+3,s.r[2],PM+PW-x-8,v("oploc"));
+  y=s.bottom+6;
+
+  s=H.sec(y,"KEY LOCATIONS",3);
+  x=H.lab(PM+5,s.r[0],"CCP — Primary:",8,true); H.tf(x+3,s.r[0],half-x-12,v("ccp1"));
+  x=H.lab(half+4,s.r[0],"AEP — Primary:",8,true); H.tf(x+3,s.r[0],PM+PW-x-8,v("aep1"));
+  x=H.lab(PM+5,s.r[1],"CCP — Alternate:"); H.tf(x+3,s.r[1],half-x-12,v("ccp2"));
+  x=H.lab(half+4,s.r[1],"AEP — Alternate:"); H.tf(x+3,s.r[1],PM+PW-x-8,v("aep2"));
+  x=H.lab(PM+5,s.r[2],"TEMS Staging:"); H.tf(x+3,s.r[2],half-x-12,v("staging"));
+  x=H.lab(half+4,s.r[2],"CCP cover/security verified:");
+  H.yn(x+4,s.r[2],segv("ccpcov"));
+  y=s.bottom+6;
+
+  s=H.sec(y,"SCENE HAZARDS  &  OCCUPANT MEDICAL INTEL",4);
+  const hz=v("hazards").replace(/\s+/g," ");
+  let hz1=hz, hz2="";
+  doc.setFont("helvetica","normal"); doc.setFontSize(8);
+  x=H.lab(PM+5,s.r[0],"Scene Hazards (weather / animals / drugs / structure):");
+  const w1=PM+PW-x-11, w2=PW-10;
+  if(doc.getTextWidth(hz)>w1-4){
+    let cut=hz.length;
+    while(cut>0 && doc.getTextWidth(hz.slice(0,cut))>w1-4) cut--;
+    const sp=hz.lastIndexOf(" ",cut); if(sp>20) cut=sp;
+    hz1=hz.slice(0,cut); hz2=hz.slice(cut).trim();
+  }
+  H.tf(x+3,s.r[0],w1,hz1);
+  H.tf(PM+5,s.r[1],w2,hz2);
+  x=H.lab(PM+5,s.r[2],"Hazards:",8,true); x+=4;
+  ["Suspected traps","Drugs on scene"].forEach(function(t){ x=H.opt(x,s.r[2],t,S.multi.hazchips.has(t),7); });
+  x=H.lab(x+6,s.r[2],"Occupants:",8,true); x+=4;
+  ["Children","Elderly","Pregnant","Medical conditions"].forEach(function(t){ x=H.opt(x,s.r[2],t,S.multi.occ.has(t),7); });
+  x=H.lab(PM+5,s.r[3],"HAZMAT flag (fentanyl / lab):",8,true);
+  x=H.yn(x+4,s.r[3],segv("hazmat"));
+  x=H.lab(x+4,s.r[3],"Details:");
+  H.tf(x+3,s.r[3],PM+PW-x-8,v("hazdet"));
+  y=s.bottom+6;
+
+  s=H.sec(y,"TEMS PERSONNEL   ( NAME  /  ASSIGNMENT )   &   WHOLE BLOOD",7,16);
+  for(let i=0;i<5;i++){
+    const rr=s.r[i];
+    H.lab(PM+5,rr,(i+1)+".",8,true);
+    x=H.tf(PM+22,rr,145,v("med"+(i+1)+"n"));
+    x=H.lab(x+3,rr,"/");
+    H.tf(x+4,rr,half-x-14,v("med"+(i+1)+"a"));
+    H.lab(half+4,rr,(i+6)+".",8,true);
+    x=H.tf(half+22,rr,145,v("med"+(i+6)+"n"));
+    x=H.lab(x+3,rr,"/");
+    H.tf(x+4,rr,PM+PW-x-10,v("med"+(i+6)+"a"));
+  }
+  x=H.lab(PM+5,s.r[5],"Specialty resources on scene:");
+  H.tf(x+3,s.r[5],PM+PW-x-8,v("specialty"));
+  x=H.lab(PM+5,s.r[6],"WHOLE BLOOD —",8,true);
+  x=H.lab(x+4,s.r[6],"Carrier:"); x=H.tf(x+3,s.r[6],95,v("wbcarrier"));
+  x=H.lab(x+6,s.r[6],"Cooler loc:"); x=H.tf(x+3,s.r[6],95,v("wbcooler"));
+  x=H.lab(x+6,s.r[6],"Admin medic (Hyannis):"); H.tf(x+3,s.r[6],PM+PW-x-8,v("wbadmin"));
+  y=s.bottom+6;
+
+  s=H.sec(y,"FIRE PLAN",4);
+  x=H.lab(PM+5,s.r[0],"Fire-as-weapon indicators (accelerants known / threatened):",8,true);
+  x=H.yn(x+4,s.r[0],segv("faw"));
+  x=H.lab(x+4,s.r[0],"Detail:");
+  H.tf(x+3,s.r[0],PM+PW-x-8,v("fawdet"));
+  x=H.lab(PM+5,s.r[1],"FD attack line staged:");
+  x=H.yn(x+4,s.r[1],segv("fdline"));
+  x=H.lab(x+4,s.r[1],"Location:");
+  H.tf(x+3,s.r[1],PM+PW-x-8,v("fdlineloc"));
+  x=H.lab(PM+5,s.r[2],"Fire evacuation signal:"); H.tf(x+3,s.r[2],PM+PW-x-8,v("firesig"));
+  x=H.lab(PM+5,s.r[3],"Burn / smoke casualty & decon plan:");
+  H.tf(x+3,s.r[3],PM+PW-x-8,v("burnplan"));
+  y=s.bottom+6;
+
+  s=H.sec(y,"UTILITIES PLAN   (shutoffs requested through fire alarm / FD command)",5,16);
+  const cu=PM+5, cs=PM+72, cd=PM+208, cl=PM+415;
+  H.lab(cu,s.r[0],"UTILITY",7.5,true); H.lab(cs,s.r[0],"STATUS",7.5,true);
+  H.lab(cd,s.r[0],"DECISION",7.5,true); H.lab(cl,s.r[0],"SHUTOFF LOCATION (if known)",7.5,true);
+  [["g","GAS"],["e","ELECTRIC"],["w","WATER"]].forEach(function(u,i){
+    const rr=s.r[i+1], st=segv("ut_"+u[0]+"_s"), dec=segv("ut_"+u[0]+"_d");
+    H.lab(cu,rr,u[1],8,true);
+    x=cs; ["On","Off","Unk"].forEach(function(t){ x=H.opt(x,rr,t,st===t,7); });
+    x=cd; ["Leave on","Kill pre-assault","Kill on-order"].forEach(function(t){ x=H.opt(x,rr,t,dec===t,7); });
+    H.tf(cl,rr,PM+PW-cl-8,v("ut_"+u[0]+"_loc"));
+  });
+  x=H.lab(PM+5,s.r[4],"Shutoff request passed to fire alarm / FD command:",8,true);
+  x=H.yn(x+4,s.r[4],segv("utreq"));
+  x=H.lab(x+6,s.r[4],"Time:");
+  H.tf(x+3,s.r[4],70,v("utreqtime"));
+  y=s.bottom+6;
+
+  s=H.sec(y,"MCI REFERENCE  (MA EMS MCI PLAN — REGION 5)  &  METHANE REPORT",4,15);
+  x=H.lab(PM+5,s.r[0],"LEVELS:",8,true);
+  x=H.lab(x+6,s.r[0],"1: 1–10      2: 11–30      3: 31–50      4: 51–200      5: 200+      6: Extended ops",8.5,true);
+  H.dimlab(x+10,s.r[0],"(potential victims)",7);
+  x=H.lab(PM+5,s.r[1],"MCI declared:",8,true);
+  x=H.yn(x+4,s.r[1],segv("mci"));
+  x=H.lab(x+4,s.r[1],"Level:"); x=H.tf(x+3,s.r[1],34,v("mcilevel"));
+  x=H.lab(x+8,s.r[1],"Time:"); H.tf(x+3,s.r[1],50,v("mcitime"));
+  function methane(row,pairs){
+    let mx=PM+5;
+    pairs.forEach(function(p,i){
+      if(i) mx=H.lab(mx,row,"   •   ",8,false);
+      mx=H.lab(mx,row,p[0],8.5,true);
+      mx=H.lab(mx+2,row,p[1],8,false);
+    });
+  }
+  methane(s.r[2],[["M","Major incident declared"],["E","Exact location + staging"],["T","Type of incident"],["H","Hazards present / potential"]]);
+  methane(s.r[3],[["A","Access / egress routes"],["N","Numbers — casualties, dead & injured"],["E","Emergency services on scene / required"]]);
+  y=s.bottom+6;
+
+  s=H.sec(y,"COMMS",1);
+  x=H.lab(PM+5,s.r[0],"Primary:",8,true); x=H.tf(x+3,s.r[0],135,v("comm1"));
+  x=H.lab(x+12,s.r[0],"Backup:",8,true); x=H.tf(x+3,s.r[0],135,v("comm2"));
+  x=H.lab(x+12,s.r[0],"Local FD channel:",8,true); H.tf(x+3,s.r[0],PM+PW-x-8,v("commfd"));
+  H.footer();
+
+  /* ---------- PAGE 2 ---------- */
+  doc.addPage();
+  y=H.header("Page 2 of 2 — Support & Reference");
+
+  s=H.sec(y,"LOCAL FIRE DEPARTMENT",3);
+  x=H.lab(PM+5,s.r[0],"Department:"); H.tf(x+3,s.r[0],half-x-12,v("fddept"));
+  x=H.lab(half+4,s.r[0],"Point of Contact:"); H.tf(x+3,s.r[0],PM+PW-x-8,v("fdpoc"));
+  x=H.lab(PM+5,s.r[1],"Radio channel / phone:"); H.tf(x+3,s.r[1],PM+PW-x-8,v("fdradio"));
+  x=H.lab(PM+5,s.r[2],"Notified:",8,true); x=H.yn(x+4,s.r[2],segv("fdnot"));
+  x=H.lab(x+6,s.r[2],"Briefed:",8,true); x=H.yn(x+4,s.r[2],segv("fdbrf"));
+  x=H.lab(x+6,s.r[2],"Staging:",8,true); x=H.yn(x+4,s.r[2],segv("fdstg"));
+  x=H.lab(x+6,s.r[2],"Location:"); H.tf(x+3,s.r[2],PM+PW-x-8,v("fdstgloc"));
+  y=s.bottom+6;
+
+  /* scene map / sketch */
+  const skH=252;
+  s=H.sec(y,"SCENE MAP  —  TGT, CCP, AEP, STG, LZ",0,LH,skH);
+  const top=y+BAR;
+  let lx=PM+8;
+  [["tri","TGT"],["circle","CCP"],["square","AEP"],["diamond","STG"],["cross","LZ"]].forEach(function(p){
+    H.sym(p[0], lx, top+9);
+    lx=H.lab(lx+8, top+12, p[1], 8, true)+16;
+  });
+  const nx=PM+PW-26;
+  doc.setLineWidth(1.4); doc.line(nx, top+4, nx, top+16);
+  doc.triangle(nx, top+1, nx-3.5, top+8, nx+3.5, top+8, "F");
+  doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.text("N", nx+6, top+12);
+  const gx0=PM+8, gx1=PM+PW-8, gy0=top+22, gy1=y+BAR+skH+PAD-8;
+  const activeMk=S.markers.filter(m=>m.mode===S.mapMode);
+  const legendLines = activeMk.filter(m=>m.label).map(m=>m.type+": "+m.label);
+  const legH = legendLines.length ? 12+Math.min(1,Math.floor((legendLines.length-1)/3))*9 : 0;
+  const imgBottom = gy1-legH;
+  if(mapCap){
+    const boxW=gx1-gx0, boxH=imgBottom-gy0;
+    const rto=Math.min(boxW/mapCap.w, boxH/mapCap.h);
+    const iw=mapCap.w*rto, ih=mapCap.h*rto;
+    const ix=gx0+(boxW-iw)/2, iy=gy0+(boxH-ih)/2;
+    doc.setFillColor(240); doc.rect(gx0,gy0,boxW,boxH,"F");
+    doc.addImage(mapCap.url,"JPEG",ix,iy,iw,ih);
+    doc.setLineWidth(0.6); doc.setDrawColor(0); doc.rect(ix,iy,iw,ih);
+  } else {
+    doc.setDrawColor(200); doc.setLineWidth(0.4);
+    for(let gx=gx0; gx<=gx1; gx+=18) doc.line(gx,gy0,gx,imgBottom);
+    for(let gy=gy0; gy<=imgBottom; gy+=18) doc.line(gx0,gy,gx1,gy);
+    doc.setDrawColor(0);
+  }
+  if(legendLines.length){
+    doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(0);
+    let line=legendLines.join("   •   ");
+    doc.setFontSize(7);
+    while(doc.getTextWidth(line)>PW-16 && line.length>4) line=line.slice(0,-2)+"…";
+    doc.text(line, PM+8, gy1-2);
+  }
+  y=s.bottom+6;
+
+  s=H.sec(y,"AEROMEDICAL — BOSTON MEDFLIGHT",2);
+  H.lab(PM+5,s.r[0],"Request via local FD dispatch or Barnstable County Control",8.5,true);
+  x=H.lab(PM+5,s.r[1],"LZ location:"); x=H.tf(x+3,s.r[1],210,v("lzloc"));
+  x=H.lab(x+8,s.r[1],"LZ hazards:"); H.tf(x+3,s.r[1],PM+PW-x-8,v("lzhaz"));
+  y=s.bottom+6;
+
+  s=H.sec(y,"K9 EMERGENCIES",3);
+  x=H.lab(PM+5,s.r[0],"Primary K9 / Handler:"); H.tf(x+3,s.r[0],half-x-12,v("k91"));
+  x=H.lab(half+4,s.r[0],"Secondary K9 / Handler:"); H.tf(x+3,s.r[0],PM+PW-x-8,v("k92"));
+  x=H.lab(PM+5,s.r[1],"FD briefed for K9 response:");
+  x=H.yn(x+4,s.r[1],segv("k9fd"));
+  H.lab(x+8,s.r[1],"VET: Kevin Smith (Hyannis Animal Hospital) (802) 598-7105 — CALL FOR ALL K9 EMERGENCIES",8,true);
+  H.lab(PM+5,s.r[2],"Transport:  Hyannis Animal Hospital (508) 775-4521   •   CC Vet Specialists, Buzzards Bay — 24 HR (508) 759-5125   •   CC Vet Specialists, S. Dennis (508) 398-7575",7,false);
+  y=s.bottom+6;
+
+  s=H.sec(y,"EXTENDED OPERATIONS",1);
+  x=H.lab(PM+5,s.r[0],"Rehab area:"); x=H.tf(x+3,s.r[0],130,v("rehab"));
+  x=H.lab(x+8,s.r[0],"Hydration / resupply:"); x=H.tf(x+3,s.r[0],120,v("hydr"));
+  x=H.lab(x+8,s.r[0],"Relief cycle:"); H.tf(x+3,s.r[0],PM+PW-x-8,v("relief"));
+  y=s.bottom+6;
+
+  const facH=78;
+  s=H.sec(y,"MEDICAL FACILITIES",0,LH,facH);
+  const ft=y+BAR;
+  doc.setFont("helvetica","bold"); doc.setFontSize(9);
+  doc.text("RECORDED MED CONTROL:  (508) 564-7822", PAGE_W/2, ft+12, {align:"center"});
+  doc.setLineWidth(0.6); doc.setDrawColor(200);
+  doc.line(PM+8, ft+17, PM+PW-8, ft+17);
+  doc.line(half, ft+17, half, y+BAR+facH+PAD-6);
+  doc.setDrawColor(0);
+  function fac(x0, lines){
+    lines.forEach(function(l,i){
+      doc.setFont("helvetica", l[1]?"bold":"normal"); doc.setFontSize(8);
+      if(l[0]) doc.text(l[0], x0, ft+28+i*9.5);
+    });
+  }
+  fac(PM+14,[
+    ["CAPE COD HOSPITAL — 27 Park St, Hyannis",true],
+    ["FALMOUTH HOSPITAL — 100 Ter Heun Dr, Falmouth",true],
+    ["",false],
+    ["TRAUMA — SOUTH SHORE HOSPITAL  •  Level 2",true],
+    ["55 Fogg Rd, South Weymouth  •  (781) 624-8000",false]
+  ]);
+  fac(half+10,[
+    ["TRAUMA — RHODE ISLAND HOSPITAL",true],
+    ["Level 1  •  PEDI  •  Burns",true],
+    ["80 Dudley St, Providence  •  (401) 444-5411",false],
+    ["",false],
+    ["TRAUMA — MASS GENERAL  •  Level 1, Burns",true],
+    ["55 Fruit St, Boston  •  (617) 724-4100",false]
+  ]);
+  y=s.bottom+6;
+
+  s=H.sec(y,"COMMAND STRUCTURE",1);
+  x=H.lab(PM+5,s.r[0],"TEMS TL:",8,true); x=H.tf(x+3,s.r[0],205,v("temstl"));
+  x=H.lab(x+16,s.r[0],"Tactical Commander:",8,true); H.tf(x+3,s.r[0],PM+PW-x-8,v("taccom"));
+  H.footer();
+
+  return doc;
+}
+
+/* ============ export ============ */
+$("#btnPdf").addEventListener("click", async function(){
+  const btn=this; btn.disabled=true; btn.textContent="Building…";
+  try{
+    let cap=null;
+    try{ cap=await captureMap(); }catch(err){ cap=null; }
+    if(S.mapMode==="live" && !cap && S.markers.some(m=>m.mode==="live"))
+      toast("Map tiles unavailable — PDF will use blank sketch grid");
+    const doc=buildPdf(cap);
+    const stamp=new Date();
+    const hh=String(stamp.getHours()).padStart(2,"0")+String(stamp.getMinutes()).padStart(2,"0");
+    const locp=(v("oploc")||"op").replace(/[^\w]+/g,"_").replace(/^_+|_+$/g,"").slice(0,24)||"op";
+    const fname="TEMS_TL_"+locp+"_"+hh+".pdf";
+    const blob=doc.output("blob");
+    let shared=false;
+    if(navigator.canShare){
+      try{
+        const file=new File([blob],fname,{type:"application/pdf"});
+        if(navigator.canShare({files:[file]})){ await navigator.share({files:[file], title:fname}); shared=true; }
+      }catch(err){ shared=false; }
+    }
+    if(!shared){
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement("a"); a.href=url; a.download=fname;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),4000);
+      toast("PDF downloaded — "+fname);
+    } else toast("PDF ready");
+  }catch(err){
+    console.error(err); toast("PDF failed — "+(err&&err.message?err.message:"unknown error"));
+  }finally{
+    btn.disabled=false; btn.textContent="Export PDF";
+  }
+});
+
+$("#btnReset").addEventListener("click", function(){
+  const b=this;
+  if(b.dataset.armed==="1"){
+    if(store){ try{ store.removeItem(AUTOKEY); }catch(e){} }
+    location.reload();
+  } else {
+    b.dataset.armed="1"; b.textContent="Tap again to clear";
+    setTimeout(function(){ b.dataset.armed="0"; b.textContent="Reset"; }, 4000);
+  }
+});
+
+/* ============ persistence ============ */
+let mapMoved=false, dirtyT=null;
+const store=(function(){
+  try{ const t="__tems_probe"; window.localStorage.setItem(t,"1"); window.localStorage.removeItem(t); return window.localStorage; }
+  catch(e){ return null; }
+})();
+const AUTOKEY="tems_autosave_v1", SAVEKEY="tems_saves_v1";
+
+function serialize(){
+  const st={ v:Object.assign({},S.v),
+    optype:Array.from(S.multi.optype), occ:Array.from(S.multi.occ), hazchips:Array.from(S.multi.hazchips),
+    mapMode:S.mapMode,
+    live:S.markers.filter(m=>m.mode==="live").map(m=>({type:m.type,lat:m.lat,lng:m.lng,label:m.label})),
+    shotM:S.markers.filter(m=>m.mode==="shot").map(m=>({type:m.type,rx:m.rx,ry:m.ry,label:m.label})),
+    shot:null, view:null, ts:Date.now() };
+  if(map){ const c=map.getCenter(); st.view={lat:c.lat,lng:c.lng,z:map.getZoom()}; }
+  if(S.shotURL && S.shotURL.length<2500000) st.shot=S.shotURL;
+  return st;
+}
+function touch(){
+  if(!store) return;
+  clearTimeout(dirtyT);
+  dirtyT=setTimeout(function(){
+    try{ store.setItem(AUTOKEY, JSON.stringify(serialize())); }catch(e){}
+  }, 500);
+}
+function applyState(st){
+  if(!st) return;
+  S.v=st.v||{};
+  S.multi.optype=new Set(st.optype||[]); S.multi.occ=new Set(st.occ||[]);
+  S.multi.hazchips=new Set(st.hazchips||[]);
+  $$("[data-k]").forEach(function(el){
+    if(el.tagName==="INPUT"||el.tagName==="TEXTAREA") el.value=S.v[el.getAttribute("data-k")]||"";
+  });
+  $$(".chips[data-m]").forEach(function(c){
+    const m=c.getAttribute("data-m"); if(m==="tool") return;
+    c.querySelectorAll("button").forEach(b=>b.classList.toggle("on", S.multi[m].has(b.getAttribute("data-val"))));
+  });
+  $("#othWrap").style.display=S.multi.optype.has("Other")?"":"none";
+  $$(".seg[data-k]").forEach(function(seg){
+    const k=seg.getAttribute("data-k"), val=S.v[k]||"";
+    seg.querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.getAttribute("data-val")===val));
+  });
+  S.markers.forEach(function(m){ if(m.lm && map) map.removeLayer(m.lm); });
+  S.markers=[];
+  (st.live||[]).forEach(m=>addLiveMarker(m.type,m.lat,m.lng,m.label));
+  (st.shotM||[]).forEach(m=>S.markers.push({id:++S.mid,mode:"shot",type:m.type,rx:m.rx,ry:m.ry,label:m.label||""}));
+  if(st.shot){
+    const img=new Image();
+    img.onload=function(){ S.shot={img:img,w:img.naturalWidth,h:img.naturalHeight}; S.shotURL=st.shot; drawShot(); };
+    img.src=st.shot;
+  } else { S.shot=null; S.shotURL=null; drawShot(); }
+  if(st.view && map){ map.setView([st.view.lat,st.view.lng],st.view.z); mapMoved=true; }
+  const mode=st.mapMode||"live";
+  $$("#mapModeSeg button").forEach(b=>b.classList.toggle("on", b.getAttribute("data-val")===mode));
+  setMapMode(mode);
+  renderRosterChips();
+}
+
+function getSaves(){ if(!store) return []; try{ return JSON.parse(store.getItem(SAVEKEY)||"[]"); }catch(e){ return []; } }
+function putSaves(a){ if(!store) return; try{ store.setItem(SAVEKEY, JSON.stringify(a)); }catch(e){ toast("Save failed — device storage full"); } }
+function renderSaves(){
+  const host=$("#saveList"); host.innerHTML="";
+  getSaves().forEach(function(sv,i){
+    const row=document.createElement("div"); row.className="saveitem";
+    const d=new Date(sv.ts);
+    row.innerHTML='<div><div class="nm">'+escHtml(sv.name)+'</div><div class="ts">'+
+      d.toLocaleDateString()+" "+d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})+'</div></div>'+
+      '<button data-act="load">Load</button><button data-act="del" aria-label="Delete">✕</button>';
+    row.querySelector('[data-act="load"]').addEventListener("click", function(){
+      applyState(sv.state); touch(); toast("Loaded — "+sv.name);
+    });
+    row.querySelector('[data-act="del"]').addEventListener("click", function(){
+      const a=getSaves(); a.splice(i,1); putSaves(a); renderSaves(); toast("Deleted");
+    });
+    host.appendChild(row);
+  });
+}
+$("#btnSaveOp").addEventListener("click", function(){
+  if(!store){ toast("Saving is blocked in this viewer — use Backup file instead"); return; }
+  const name=($("#opName").value.trim() || v("oploc") || "Op "+new Date().toLocaleDateString());
+  const a=getSaves(); a.unshift({name:name, ts:Date.now(), state:serialize()});
+  if(a.length>12) a.length=12;
+  putSaves(a); renderSaves(); $("#opName").value="";
+  toast("Saved — "+name);
+});
+$("#btnBackup").addEventListener("click", async function(){
+  const fname="TEMS_op_"+((v("oploc")||"backup").replace(/[^\w]+/g,"_").slice(0,24)||"backup")+".json";
+  const blob=new Blob([JSON.stringify({kind:"tems_backup", op:serialize(), roster:getRoster()},null,1)],{type:"application/json"});
+  let shared=false;
+  if(navigator.canShare){
+    try{
+      const file=new File([blob],fname,{type:"application/json"});
+      if(navigator.canShare({files:[file]})){ await navigator.share({files:[file], title:fname}); shared=true; }
+    }catch(e){ shared=false; }
+  }
+  if(!shared){
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a"); a.href=url; a.download=fname;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),4000);
+  }
+  toast("Backup ready — save it to Drive or Files");
+});
+$("#restoreFile").addEventListener("change", function(e){
+  const f=e.target.files && e.target.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=function(){
+    try{
+      const d=JSON.parse(rd.result);
+      if(d && d.kind==="tems_backup"){
+        if(Array.isArray(d.roster)) putRoster(d.roster);
+        applyState(d.op);
+      } else applyState(d);
+      touch(); toast("Backup restored");
+    }
+    catch(err){ toast("Restore failed — not a TEMS backup file"); }
+  };
+  rd.readAsText(f); e.target.value="";
+});
+
+/* ============ team roster ============ */
+const ROSTERKEY="tems_roster_v1";
+const DEFAULT_ROSTER=[];  /* hosted copy ships without names — restore roster from a backup file */
+let rosterMem=DEFAULT_ROSTER.slice();
+function getRoster(){
+  if(!store) return rosterMem;
+  try{ const r=JSON.parse(store.getItem(ROSTERKEY)||"null"); return Array.isArray(r)?r:DEFAULT_ROSTER.slice(); }
+  catch(e){ return DEFAULT_ROSTER.slice(); }
+}
+function putRoster(r){
+  rosterMem=r;
+  if(store){ try{ store.setItem(ROSTERKEY, JSON.stringify(r)); }catch(e){} }
+  renderRosterChips(); renderRosterEditor();
+}
+function medNames(){ const out=[]; for(let i=1;i<=10;i++) out.push((S.v["med"+i+"n"]||"").trim()); return out; }
+function toggleMedic(name){
+  const names=medNames(), idx=names.indexOf(name);
+  if(idx>=0){ setField("med"+(idx+1)+"n",""); setField("med"+(idx+1)+"a",""); }
+  else{
+    const slot=names.findIndex(n=>!n);
+    if(slot<0){ toast("All 10 slots filled"); return; }
+    setField("med"+(slot+1)+"n", name);
+  }
+  renderRosterChips();
+}
+function renderRosterChips(){
+  const host=$("#rosterChips"); if(!host) return;
+  host.innerHTML="";
+  const names=medNames();
+  getRoster().forEach(function(n){
+    const b=document.createElement("button"); b.type="button"; b.textContent=n;
+    if(names.indexOf(n)>=0) b.classList.add("on");
+    b.addEventListener("click", function(){ toggleMedic(n); });
+    host.appendChild(b);
+  });
+  if(!getRoster().length) host.innerHTML='<span class="hint">Roster empty — add members below.</span>';
+}
+function renderRosterEditor(){
+  const host=$("#rosterEdit"); if(!host) return;
+  host.innerHTML="";
+  getRoster().forEach(function(n,i){
+    const row=document.createElement("div"); row.className="mkitem rosteritem";
+    row.innerHTML='<input type="text" value="'+escHtml(n)+'"><button aria-label="Remove">✕</button>';
+    row.querySelector("input").addEventListener("change", function(ev){
+      const r=getRoster(); const nv=ev.target.value.trim();
+      if(nv){ r[i]=nv; putRoster(r); }
+    });
+    row.querySelector("button").addEventListener("click", function(){
+      const r=getRoster(); const gone=r.splice(i,1); putRoster(r); toast("Removed — "+gone);
+    });
+    host.appendChild(row);
+  });
+}
+$("#btnAddMedic").addEventListener("click", function(){
+  const inp=$("#newMedic"), n=inp.value.trim(); if(!n) return;
+  const r=getRoster();
+  if(r.indexOf(n)>=0){ toast("Already on roster"); return; }
+  r.push(n); putRoster(r); inp.value=""; toast("Added — "+n);
+});
+
+/* ============ weather prefill ============ */
+function compass(deg){
+  const d=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+  return d[Math.round((deg%360)/22.5)%16];
+}
+function wmo(code){
+  if(code===0) return "clear";
+  if(code<=2) return "partly cloudy";
+  if(code===3) return "overcast";
+  if(code===45||code===48) return "fog";
+  if(code<=57) return "drizzle";
+  if(code<=67) return "rain";
+  if(code<=77) return "snow";
+  if(code<=82) return "rain showers";
+  if(code<=86) return "snow showers";
+  if(code>=95) return "thunderstorms";
+  return "";
+}
+function setField(k,val){
+  S.v[k]=val;
+  const el=document.querySelector('[data-k="'+k+'"]'); if(el) el.value=val;
+  touch();
+}
+function wxCoords(){
+  return new Promise(function(res){
+    if(mapMoved && map){ const c=map.getCenter(); return res({lat:c.lat,lng:c.lng,src:"map"}); }
+    if(navigator.geolocation){
+      navigator.geolocation.getCurrentPosition(
+        p=>res({lat:p.coords.latitude,lng:p.coords.longitude,src:"device"}),
+        function(){ const c=map?map.getCenter():{lat:41.68,lng:-70.33}; res({lat:c.lat,lng:c.lng,src:"map"}); },
+        {timeout:6000});
+    } else { const c=map?map.getCenter():{lat:41.68,lng:-70.33}; res({lat:c.lat,lng:c.lng,src:"map"}); }
+  });
+}
+$("#btnWx").addEventListener("click", async function(){
+  const b=this; b.disabled=true; b.textContent="…";
+  try{
+    const c=await wxCoords();
+    const u="https://api.open-meteo.com/v1/forecast?latitude="+c.lat.toFixed(4)+"&longitude="+c.lng.toFixed(4)+
+      "&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m"+
+      "&daily=sunrise,sunset&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=1";
+    const d=await (await fetch(u)).json();
+    const cur=d.current;
+    let wx=Math.round(cur.temperature_2m)+"\u00B0F";
+    if(Math.abs(cur.apparent_temperature-cur.temperature_2m)>=6) wx+=" (feels "+Math.round(cur.apparent_temperature)+"\u00B0)";
+    const cond=wmo(cur.weather_code); if(cond) wx+=", "+cond;
+    wx+=", wind "+compass(cur.wind_direction_10m)+" "+Math.round(cur.wind_speed_10m)+" G "+Math.round(cur.wind_gusts_10m)+" mph";
+    setField("weather", wx);
+    if(d.daily && d.daily.sunrise && d.daily.sunrise[0]){
+      setField("sunrise", d.daily.sunrise[0].slice(11,16));
+      setField("sunset",  d.daily.sunset[0].slice(11,16));
+    }
+    toast("WX + sun times filled ("+(c.src==="map"?"map location":"device location")+")");
+  }catch(err){ toast("WX unavailable — check signal"); }
+  finally{ b.disabled=false; b.textContent="Auto WX"; }
+});
+
+/* boot */
+initMap();
+map.on("dragend", function(){ mapMoved=true; });
+map.on("moveend", function(){ touch(); });
+if(!store) $("#storeNote").hidden=false;
+if(store && !store.getItem(ROSTERKEY)) putRoster(DEFAULT_ROSTER.slice());
+if(store){
+  try{ const st=JSON.parse(store.getItem(AUTOKEY)||"null"); if(st){ applyState(st); toast("Restored autosave"); } }
+  catch(e){}
+  renderSaves();
+}
+renderRosterChips(); renderRosterEditor();
+</script>
+</body>
+</html>
