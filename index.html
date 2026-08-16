@@ -330,7 +330,7 @@ footer{max-width:760px; margin:0 auto; padding:0 14px 30px; font-size:11px; colo
     </div>
   </div>
   <div class="mklist" id="mklist"></div>
-  <div class="hint">Drag markers to adjust · labels print on the PDF legend · imagery: Esri</div>
+  <div class="hint">Pins auto-fill their fields — 1st CCP/AEP = primary, 2nd = alternate; TGT → op location, STG → staging, LZ → LZ. Address fills in from the pin position (lat/long if no signal); edit the pin label to rename. Typed-in fields are never overwritten. Imagery: Esri</div>
 </div></section>
 
 <section class="sec"><div class="bar">Aeromedical — Boston MedFlight</div><div class="bd">
@@ -393,7 +393,7 @@ footer{max-width:760px; margin:0 auto; padding:0 14px 30px; font-size:11px; colo
 "use strict";
 /* ============ state ============ */
 const S = { v:{}, multi:{ optype:new Set(), occ:new Set(), hazchips:new Set() }, tool:null,
-            mapMode:"live", markers:[], shot:null, mid:0 };
+            mapMode:"live", markers:[], shot:null, mid:0, autof:{} };
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const MK = { TGT:"#FF4747", CCP:"#35C46A", AEP:"#3AA0FF", STG:"#FFB020", LZ:"#C77DFF" };
@@ -476,12 +476,74 @@ function mkIcon(type){
   return L.divIcon({className:"", html:'<div class="mk mk-'+type+'">'+type+'</div>',
     iconSize:[34,19], iconAnchor:[17,9]});
 }
-function addLiveMarker(type, lat, lng, label){
+function addLiveMarker(type, lat, lng, label, addr, ed){
   const id=++S.mid;
   const lm=L.marker([lat,lng],{icon:mkIcon(type), draggable:true}).addTo(map);
-  const rec={id:id, mode:"live", type:type, lat:lat, lng:lng, label:label||"", lm:lm};
-  lm.on("dragend", function(){ const p=lm.getLatLng(); rec.lat=p.lat; rec.lng=p.lng; touch(); });
-  S.markers.push(rec); renderMk(); touch();
+  const rec={id:id, mode:"live", type:type, lat:lat, lng:lng,
+             label:label||"", addr:addr||null, labelEdited:!!ed, lm:lm};
+  lm.on("dragend", function(){
+    const p=lm.getLatLng(); rec.lat=p.lat; rec.lng=p.lng;
+    if(!rec.labelEdited){ rec.label=""; rec.addr=null; renderMk(); reverseGeo(rec); }
+    syncMarkerFields(); touch();
+  });
+  S.markers.push(rec); renderMk();
+  syncMarkerFields();
+  if(!rec.addr && !rec.label) reverseGeo(rec);
+  touch();
+}
+
+/* field auto-backfill from markers */
+const FIELD_BIND={ TGT:["oploc"], CCP:["ccp1","ccp2"], AEP:["aep1","aep2"], STG:["staging"], LZ:["lzloc"] };
+function mkValue(m){
+  if(m.label && m.label.trim()) return m.label.trim();
+  if(m.mode==="live"){
+    if(m.addr) return m.addr;
+    return m.lat.toFixed(5)+", "+m.lng.toFixed(5);
+  }
+  return "";
+}
+function syncMarkerFields(){
+  const want={};
+  Object.keys(FIELD_BIND).forEach(function(type){
+    const slots=FIELD_BIND[type];
+    S.markers.filter(m=>m.mode===S.mapMode && m.type===type).forEach(function(m,i){
+      if(i<slots.length){ const val=mkValue(m); if(val) want[slots[i]]=val; }
+    });
+  });
+  Object.keys(FIELD_BIND).forEach(function(type){
+    FIELD_BIND[type].forEach(function(f){
+      const cur=(S.v[f]||"").trim(), auto=S.autof[f];
+      if(f in want){
+        if(!cur || cur===auto){
+          if(cur!==want[f]) setField(f, want[f]);
+          S.autof[f]=want[f];
+        }
+      } else if(cur && cur===auto){
+        setField(f,""); delete S.autof[f];
+      }
+    });
+  });
+}
+let geoQ=Promise.resolve();
+function reverseGeo(m){
+  if(m.mode!=="live") return;
+  geoQ=geoQ.then(function(){ return new Promise(function(done){
+    fetch("https://nominatim.openstreetmap.org/reverse?format=json&zoom=18&lat="+m.lat+"&lon="+m.lng)
+      .then(r=>r.json())
+      .then(function(d){
+        const a=d.address||{};
+        let s=[[a.house_number,a.road].filter(Boolean).join(" ")||a.road||"",
+               a.village||a.town||a.city||a.hamlet||""].filter(Boolean).join(", ");
+        if(!s && d.display_name) s=d.display_name.split(",").slice(0,2).join(",").trim();
+        if(s){
+          m.addr=s;
+          if(!m.label && !m.labelEdited) m.label=s;
+          renderMk(); syncMarkerFields();
+        }
+        setTimeout(done,1100);
+      })
+      .catch(function(){ setTimeout(done,300); });
+  });});
 }
 $("#btnGo").addEventListener("click", doSearch);
 $("#addr").addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); doSearch(); }});
@@ -529,34 +591,46 @@ cv.addEventListener("click", function(e){
   const r=cv.getBoundingClientRect();
   const rx=(e.clientX-r.left)/r.width, ry=(e.clientY-r.top)/r.height;
   S.markers.push({id:++S.mid, mode:"shot", type:S.tool, rx:rx, ry:ry, label:""});
-  drawShot(); renderMk(); touch();
+  drawShot(); renderMk(); syncMarkerFields(); touch();
 });
 function setMapMode(mode){
   S.mapMode=mode;
   $("#liveWrap").style.display = mode==="live" ? "" : "none";
   $("#shotWrap").style.display = mode==="shot" ? "" : "none";
   if(mode==="live" && map) setTimeout(()=>map.invalidateSize(),60);
-  renderMk(); touch();
+  renderMk(); syncMarkerFields(); touch();
 }
 
 /* ============ marker list ============ */
+let pendingMkRender=false;
 function renderMk(){
-  const host=$("#mklist"); host.innerHTML="";
+  const host=$("#mklist"); if(!host) return;
+  if(document.activeElement && host.contains(document.activeElement)){ pendingMkRender=true; return; }
+  host.innerHTML="";
   S.markers.filter(m=>m.mode===S.mapMode).forEach(function(m){
     const row=document.createElement("div"); row.className="mkitem";
     row.innerHTML='<div class="mkbadge b-'+m.type+'">'+m.type+'</div>'+
       '<input type="text" placeholder="Label (prints on PDF)" value="'+escHtml(m.label)+'">'+
       '<button aria-label="Delete">✕</button>';
-    row.querySelector("input").addEventListener("input", ev=>{ m.label=ev.target.value; if(m.mode==="shot") drawShot(); touch(); });
+    row.querySelector("input").addEventListener("input", ev=>{
+      m.label=ev.target.value; m.labelEdited=true;
+      if(m.mode==="shot") drawShot();
+      syncMarkerFields(); touch();
+    });
     row.querySelector("button").addEventListener("click", function(){
       if(m.lm && map) map.removeLayer(m.lm);
       S.markers=S.markers.filter(x=>x.id!==m.id);
       if(m.mode==="shot") drawShot();
-      renderMk(); touch();
+      renderMk(); syncMarkerFields(); touch();
     });
     host.appendChild(row);
   });
 }
+document.addEventListener("focusout", function(e){
+  if(pendingMkRender && e.target && e.target.closest && e.target.closest("#mklist")){
+    pendingMkRender=false; setTimeout(renderMk,50);
+  }
+});
 function escHtml(s){ return String(s||"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
 /* badge painter shared by canvas + capture */
@@ -1016,8 +1090,9 @@ function serialize(){
   const st={ v:Object.assign({},S.v),
     optype:Array.from(S.multi.optype), occ:Array.from(S.multi.occ), hazchips:Array.from(S.multi.hazchips),
     mapMode:S.mapMode,
-    live:S.markers.filter(m=>m.mode==="live").map(m=>({type:m.type,lat:m.lat,lng:m.lng,label:m.label})),
+    live:S.markers.filter(m=>m.mode==="live").map(m=>({type:m.type,lat:m.lat,lng:m.lng,label:m.label,addr:m.addr||null,ed:!!m.labelEdited})),
     shotM:S.markers.filter(m=>m.mode==="shot").map(m=>({type:m.type,rx:m.rx,ry:m.ry,label:m.label})),
+    autof:Object.assign({},S.autof),
     shot:null, view:null, ts:Date.now() };
   if(map){ const c=map.getCenter(); st.view={lat:c.lat,lng:c.lng,z:map.getZoom()}; }
   if(S.shotURL && S.shotURL.length<2500000) st.shot=S.shotURL;
@@ -1035,6 +1110,7 @@ function applyState(st){
   S.v=st.v||{};
   S.multi.optype=new Set(st.optype||[]); S.multi.occ=new Set(st.occ||[]);
   S.multi.hazchips=new Set(st.hazchips||[]);
+  S.autof=st.autof||{};
   $$("[data-k]").forEach(function(el){
     if(el.tagName==="INPUT"||el.tagName==="TEXTAREA") el.value=S.v[el.getAttribute("data-k")]||"";
   });
@@ -1049,7 +1125,7 @@ function applyState(st){
   });
   S.markers.forEach(function(m){ if(m.lm && map) map.removeLayer(m.lm); });
   S.markers=[];
-  (st.live||[]).forEach(m=>addLiveMarker(m.type,m.lat,m.lng,m.label));
+  (st.live||[]).forEach(m=>addLiveMarker(m.type,m.lat,m.lng,m.label,m.addr,m.ed));
   (st.shotM||[]).forEach(m=>S.markers.push({id:++S.mid,mode:"shot",type:m.type,rx:m.rx,ry:m.ry,label:m.label||""}));
   if(st.shot){
     const img=new Image();
