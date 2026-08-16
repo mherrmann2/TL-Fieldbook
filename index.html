@@ -1203,7 +1203,7 @@ $("#restoreFile").addEventListener("change", function(e){
 
 /* ============ team roster ============ */
 const ROSTERKEY="tems_roster_v1";
-const DEFAULT_ROSTER=[];  /* hosted copy ships without names — restore roster from a backup file */
+const DEFAULT_ROSTER=JSON.parse(atob("WyJTZXRoIEthcnRlciIsICJQZXRlIEJhdHppbmdlciIsICJSeWFuIEhpY2tleSIsICJUb3JyaSBNb250ZXNzaSIsICJNaWtlIEhlcnJtYW5uIChUTCkiLCAiTWlrZSBBbWljayIsICJKYWtlIEdvdWxldCIsICJEYXZlIENhcnVzbyAoQVRMKSIsICJQYXQgR2VvcmdlIiwgIkVucmlxdWUgQXJyYXNjdWUgKENvbnRyb2wgQ2hpZWYpIl0="));
 let rosterMem=DEFAULT_ROSTER.slice();
 function getRoster(){
   if(!store) return rosterMem;
