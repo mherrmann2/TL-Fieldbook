@@ -1354,16 +1354,41 @@ $("#restoreFile").addEventListener("change", function(e){
 
 /* ============ team roster ============ */
 const ROSTERKEY="tems_roster_v1";
-const DEFAULT_ROSTER=JSON.parse(atob("WyJTZXRoIEthcnRlciIsICJQZXRlIEJhdHppbmdlciIsICJSeWFuIEhpY2tleSIsICJUb3JyaSBNb250ZXNzaSIsICJNaWtlIEhlcnJtYW5uIChUTCkiLCAiTWlrZSBBbWljayIsICJKYWtlIEdvdWxldCIsICJEYXZlIENhcnVzbyAoQVRMKSIsICJQYXQgR2VvcmdlIiwgIkVucmlxdWUgQXJyYXNjdWUgKENvbnRyb2wgQ2hpZWYpIl0="));
+const DEFAULT_ROSTER=JSON.parse(atob("WyJFbnJpcXVlIEFycmFzY3VlIChDb250cm9sIENoaWVmKSIsICJNaWtlIEhlcnJtYW5uIChUTCkiLCAiRGF2ZSBDYXJ1c28gKEFUTCkiLCAiTWlrZSBBbWljayIsICJQZXRlIEJhdHppbmdlciIsICJQYXQgR2VvcmdlIiwgIkpha2UgR291bGV0IiwgIlJ5YW4gSGlja2V5IiwgIlNldGggS2FydGVyIiwgIlRvcnJpIE1vbnRlc3NpIl0="));
 let rosterMem=DEFAULT_ROSTER.slice();
+/* seniority order: Chief → TL → ATL → alphabetical by last name */
+function rankOf(n){
+  const m=/\(([^)]*)\)/.exec(n||"");
+  const t=(m?m[1]:"").toLowerCase().trim();
+  if(!t) return 3;
+  if(t.indexOf("chief")>=0) return 0;
+  if(t==="atl" || t.indexOf("assistant team leader")>=0) return 2;
+  if(t==="tl" || t.indexOf("team leader")>=0) return 1;
+  return 3;
+}
+function lastOf(n){
+  const bare=(n||"").replace(/\([^)]*\)/g,"").trim();
+  const parts=bare.split(/\s+/);
+  return (parts[parts.length-1]||bare).toLowerCase();
+}
+function sortRoster(a){
+  return a.slice().sort(function(x,y){
+    const rx=rankOf(x), ry=rankOf(y);
+    if(rx!==ry) return rx-ry;
+    const lx=lastOf(x), ly=lastOf(y);
+    if(lx!==ly) return lx<ly ? -1 : 1;
+    return x.localeCompare(y);
+  });
+}
 function getRoster(){
-  if(!store) return rosterMem;
-  try{ const r=JSON.parse(store.getItem(ROSTERKEY)||"null"); return Array.isArray(r)?r:DEFAULT_ROSTER.slice(); }
-  catch(e){ return DEFAULT_ROSTER.slice(); }
+  if(!store) return sortRoster(rosterMem);
+  try{ const r=JSON.parse(store.getItem(ROSTERKEY)||"null"); return sortRoster(Array.isArray(r)?r:DEFAULT_ROSTER.slice()); }
+  catch(e){ return sortRoster(DEFAULT_ROSTER.slice()); }
 }
 function putRoster(r){
-  rosterMem=r;
-  if(store){ try{ store.setItem(ROSTERKEY, JSON.stringify(r)); }catch(e){} }
+  const sorted=sortRoster(r);
+  rosterMem=sorted;
+  if(store){ try{ store.setItem(ROSTERKEY, JSON.stringify(sorted)); }catch(e){} }
   renderRosterChips(); renderRosterEditor();
 }
 function medNames(){ const out=[]; for(let i=1;i<=10;i++) out.push((S.v["med"+i+"n"]||"").trim()); return out; }
