@@ -218,6 +218,7 @@ footer{max-width:760px; margin:0 auto; padding:0 14px 30px; font-size:11px; colo
       <div class="fld"><label>New member</label><input type="text" id="newMedic" placeholder="Name (tag optional)"></div>
       <div class="fld tight"><label>&nbsp;</label><button id="btnAddMedic">Add</button></div>
     </div>
+    <button id="btnRosterDefault" class="btn-ghost" style="margin-top:8px">Restore team default roster</button>
   </details>
 </div></section>
 
@@ -1353,8 +1354,9 @@ $("#restoreFile").addEventListener("change", function(e){
 });
 
 /* ============ team roster ============ */
-const ROSTERKEY="tems_roster_v1";
-const DEFAULT_ROSTER=JSON.parse(atob("WyJFbnJpcXVlIEFycmFzY3VlIChDb250cm9sIENoaWVmKSIsICJNaWtlIEhlcnJtYW5uIChUTCkiLCAiRGF2ZSBDYXJ1c28gKEFUTCkiLCAiTWlrZSBBbWljayIsICJQZXRlIEJhdHppbmdlciIsICJQYXQgR2VvcmdlIiwgIkpha2UgR291bGV0IiwgIlJ5YW4gSGlja2V5IiwgIlNldGggS2FydGVyIiwgIlRvcnJpIE1vbnRlc3NpIl0="));
+const ROSTERKEY="tems_roster_v1", ROSTERVERKEY="tems_roster_ver", ROSTERCUSTKEY="tems_roster_custom";
+const ROSTER_VER=2;
+const DEFAULT_ROSTER=JSON.parse(atob("WyJBcnJhc2N1ZSwgRW5yaXF1ZSAoQ29udHJvbCBDaGllZikiLCAiSGVycm1hbm4sIE1pY2hhZWwgKFRMKSIsICJDYXJ1c28sIERhdmlkIChBVEwpIiwgIkFtaWNrLCBNaWNoYWVsIiwgIkJhdHppbmdlciwgUGV0ZXIiLCAiR2VvcmdlLCBQYXQiLCAiR291bGV0LCBKYWNvYiIsICJIaWNrZXksIFJ5YW4iLCAiS2FydGVyLCBTZXRoIiwgIk1vbnRlc3NpLCBUb3JyaSJd"));
 let rosterMem=DEFAULT_ROSTER.slice();
 /* seniority order: Chief → TL → ATL → alphabetical by last name */
 function rankOf(n){
@@ -1368,6 +1370,7 @@ function rankOf(n){
 }
 function lastOf(n){
   const bare=(n||"").replace(/\([^)]*\)/g,"").trim();
+  if(bare.indexOf(",")>=0) return bare.split(",")[0].trim().toLowerCase();
   const parts=bare.split(/\s+/);
   return (parts[parts.length-1]||bare).toLowerCase();
 }
@@ -1385,10 +1388,16 @@ function getRoster(){
   try{ const r=JSON.parse(store.getItem(ROSTERKEY)||"null"); return sortRoster(Array.isArray(r)?r:DEFAULT_ROSTER.slice()); }
   catch(e){ return sortRoster(DEFAULT_ROSTER.slice()); }
 }
-function putRoster(r){
+function putRoster(r, custom){
   const sorted=sortRoster(r);
   rosterMem=sorted;
-  if(store){ try{ store.setItem(ROSTERKEY, JSON.stringify(sorted)); }catch(e){} }
+  if(store){
+    try{
+      store.setItem(ROSTERKEY, JSON.stringify(sorted));
+      store.setItem(ROSTERVERKEY, String(ROSTER_VER));
+      if(custom) store.setItem(ROSTERCUSTKEY,"1");
+    }catch(e){}
+  }
   renderRosterChips(); renderRosterEditor();
 }
 function medNames(){ const out=[]; for(let i=1;i<=10;i++) out.push((S.v["med"+i+"n"]||"").trim()); return out; }
@@ -1422,10 +1431,10 @@ function renderRosterEditor(){
     row.innerHTML='<input type="text" value="'+escHtml(n)+'"><button aria-label="Remove">✕</button>';
     row.querySelector("input").addEventListener("change", function(ev){
       const r=getRoster(); const nv=ev.target.value.trim();
-      if(nv){ r[i]=nv; putRoster(r); }
+      if(nv){ r[i]=nv; putRoster(r,true); }
     });
     row.querySelector("button").addEventListener("click", function(){
-      const r=getRoster(); const gone=r.splice(i,1); putRoster(r); toast("Removed — "+gone);
+      const r=getRoster(); const gone=r.splice(i,1); putRoster(r,true); toast("Removed — "+gone);
     });
     host.appendChild(row);
   });
@@ -1434,7 +1443,7 @@ $("#btnAddMedic").addEventListener("click", function(){
   const inp=$("#newMedic"), n=inp.value.trim(); if(!n) return;
   const r=getRoster();
   if(r.indexOf(n)>=0){ toast("Already on roster"); return; }
-  r.push(n); putRoster(r); inp.value=""; toast("Added — "+n);
+  r.push(n); putRoster(r,true); inp.value=""; toast("Added — "+n);
 });
 
 /* ============ weather prefill ============ */
@@ -1502,7 +1511,25 @@ setLabels(true);
 map.on("dragend", function(){ mapMoved=true; });
 map.on("moveend", function(){ touch(); });
 if(!store) $("#storeNote").hidden=false;
-if(store && !store.getItem(ROSTERKEY)) putRoster(DEFAULT_ROSTER.slice());
+if(store){
+  const seeded=store.getItem(ROSTERKEY);
+  const custom=store.getItem(ROSTERCUSTKEY)==="1";
+  const ver=parseInt(store.getItem(ROSTERVERKEY)||"0",10);
+  if(!seeded) putRoster(DEFAULT_ROSTER.slice());
+  else if(!custom && ver<ROSTER_VER){ putRoster(DEFAULT_ROSTER.slice()); toast("Roster updated to team default"); }
+}
+$("#btnRosterDefault").addEventListener("click", function(){
+  const b=this;
+  if(b.dataset.armed==="1"){
+    if(store){ try{ store.removeItem(ROSTERCUSTKEY); }catch(e){} }
+    putRoster(DEFAULT_ROSTER.slice());
+    b.dataset.armed="0"; b.textContent="Restore team default roster";
+    toast("Team default roster restored");
+  } else {
+    b.dataset.armed="1"; b.textContent="Tap again — replaces your roster";
+    setTimeout(function(){ b.dataset.armed="0"; b.textContent="Restore team default roster"; }, 4000);
+  }
+});
 if(store){
   try{ const st=JSON.parse(store.getItem(AUTOKEY)||"null"); if(st){ applyState(st); toast("Restored autosave"); } }
   catch(e){}
