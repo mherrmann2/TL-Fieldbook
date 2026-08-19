@@ -82,6 +82,7 @@ input::placeholder,textarea::placeholder{color:#5C6670}
 .mkchips button.on[data-val=AEP]{background:var(--blu); border-color:var(--blu)}
 .mkchips button.on[data-val=STG]{background:var(--amber); border-color:var(--amber)}
 .mkchips button.on[data-val=LZ]{background:var(--vio); border-color:var(--vio)}
+.mkchips button.on[data-val=ROUTE]{background:#22E0F0; border-color:#22E0F0}
 .mklist{display:grid; gap:8px}
 .revitem{display:grid; grid-template-columns:26px 1fr; gap:9px; align-items:start;
   background:var(--field); border:1px solid var(--line); border-radius:9px; padding:9px}
@@ -155,7 +156,8 @@ footer{max-width:760px; margin:0 auto; padding:0 14px 30px; font-size:11px; colo
     <div class="fld"><label>Paste op plan text</label>
       <textarea id="planText" rows="4" placeholder="Select all in the plan, copy, paste here"></textarea></div>
     <div class="inline">
-      <label class="filelbl">Choose PDF<input type="file" id="planFile" accept="application/pdf,.pdf" hidden></label>
+      <label class="filelbl">PDF<input type="file" id="planFile" accept="application/pdf,.pdf" hidden></label>
+      <label class="filelbl">Screenshots<input type="file" id="planImgs" accept="image/*" multiple hidden></label>
       <button id="btnParsePlan" class="btn-amber">Read plan</button>
     </div>
     <div id="reviewWrap" style="display:none; margin-top:4px">
@@ -358,7 +360,13 @@ footer{max-width:760px; margin:0 auto; padding:0 14px 30px; font-size:11px; colo
       <button data-val="TGT">TGT</button><button data-val="CCP">CCP</button>
       <button data-val="AEP">AEP</button><button data-val="STG">STG</button>
       <button data-val="LZ">LZ</button>
+      <button data-val="ROUTE">ROUTE</button>
     </div>
+  </div>
+  <div class="inline" id="routeBar" style="display:none">
+    <span class="hint" id="routeInfo" style="flex:1"></span>
+    <button id="btnRouteUndo">Undo point</button>
+    <button id="btnRouteClear">Clear route</button>
   </div>
   <div class="mklist" id="mklist"></div>
   <div class="inline" style="margin-top:2px">
@@ -429,7 +437,8 @@ footer{max-width:760px; margin:0 auto; padding:0 14px 30px; font-size:11px; colo
 "use strict";
 /* ============ state ============ */
 const S = { v:{}, multi:{ optype:new Set(), occ:new Set(), hazchips:new Set() }, tool:null,
-            mapMode:"live", markers:[], shot:null, mid:0, autof:{}, captures:[], roads:false, labels:true };
+            mapMode:"live", markers:[], shot:null, mid:0, autof:{}, captures:[], roads:false, labels:true, route:{live:[],shot:[]} };
+const ROUTE_C="#22E0F0";
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const MK = { TGT:"#FF4747", CCP:"#35C46A", AEP:"#3AA0FF", STG:"#FFB020", LZ:"#C77DFF" };
@@ -485,6 +494,7 @@ document.addEventListener("click", function(e){
     if(m==="tool"){
       S.tool = (S.tool===val? null : val);
       $$("#toolChips button").forEach(x=>x.classList.toggle("on", x.getAttribute("data-val")===S.tool));
+      updateRouteBar();
       return;
     }
     const set=S.multi[m]; if(set.has(val)) set.delete(val); else set.add(val);
@@ -519,6 +529,10 @@ function initMap(){
   L.tileLayer(TILE,{maxZoom:19, crossOrigin:"anonymous", attribution:"Esri World Imagery"}).addTo(map);
   map.on("click", function(ev){
     if(!S.tool) return;
+    if(S.tool==="ROUTE"){
+      S.route.live.push({lat:ev.latlng.lat, lng:ev.latlng.lng});
+      drawRoute(); touch(); return;
+    }
     addLiveMarker(S.tool, ev.latlng.lat, ev.latlng.lng);
   });
 }
@@ -540,6 +554,56 @@ function addLiveMarker(type, lat, lng, label, addr, ed){
   syncMarkerFields();
   if(!rec.addr && !rec.label) reverseGeo(rec);
   touch();
+}
+
+/* ---- route (parade / perimeter line) ---- */
+let routeLayers=[];
+function haversine(a,b){
+  const R=3958.8, toR=Math.PI/180;
+  const dLat=(b.lat-a.lat)*toR, dLng=(b.lng-a.lng)*toR;
+  const h=Math.sin(dLat/2)*Math.sin(dLat/2)+
+    Math.cos(a.lat*toR)*Math.cos(b.lat*toR)*Math.sin(dLng/2)*Math.sin(dLng/2);
+  return 2*R*Math.asin(Math.sqrt(Math.min(1,h)));
+}
+function routeMiles(){
+  const p=S.route.live; let d=0;
+  for(let i=1;i<p.length;i++) d+=haversine(p[i-1],p[i]);
+  return d;
+}
+function routeLabel(){
+  const n=(S.mapMode==="live"?S.route.live:S.route.shot).length;
+  if(!n) return "";
+  if(S.mapMode==="live" && n>1) return "Route: "+routeMiles().toFixed(2)+" mi";
+  return "Route: "+n+" points";
+}
+function drawRoute(){
+  routeLayers.forEach(function(l){ if(map && map.hasLayer(l)) map.removeLayer(l); });
+  routeLayers=[];
+  const pts=S.route.live.map(p=>[p.lat,p.lng]);
+  if(map && pts.length>1){
+    routeLayers.push(L.polyline(pts,{color:"#000", weight:8, opacity:0.85, lineJoin:"round"}).addTo(map));
+    routeLayers.push(L.polyline(pts,{color:ROUTE_C, weight:4, opacity:1, lineJoin:"round"}).addTo(map));
+  }
+  if(map) S.route.live.forEach(function(p){
+    routeLayers.push(L.circleMarker([p.lat,p.lng],{radius:4, color:"#000", weight:2, fillColor:ROUTE_C, fillOpacity:1}).addTo(map));
+  });
+  updateRouteBar();
+}
+function updateRouteBar(){
+  const bar=$("#routeBar"), info=$("#routeInfo"); if(!bar) return;
+  const pts=(S.mapMode==="live"?S.route.live:S.route.shot);
+  bar.style.display = (pts.length || S.tool==="ROUTE") ? "" : "none";
+  if(info) info.textContent = pts.length
+    ? routeLabel()+" — tap map to add points"
+    : "ROUTE selected — tap the map to trace the route";
+}
+function strokeRoute(g, pts, scale){
+  if(pts.length<2) return;
+  g.beginPath();
+  pts.forEach(function(q,i){ i ? g.lineTo(q.x,q.y) : g.moveTo(q.x,q.y); });
+  g.lineJoin="round"; g.lineCap="round";
+  g.strokeStyle="#000"; g.lineWidth=7*scale; g.stroke();
+  g.strokeStyle=ROUTE_C; g.lineWidth=3.5*scale; g.stroke();
 }
 
 /* field auto-backfill from markers */
@@ -631,6 +695,7 @@ function drawShot(){
   const maxW=1600, sc=Math.min(1, maxW/S.shot.w);
   cv.width=Math.round(S.shot.w*sc); cv.height=Math.round(S.shot.h*sc);
   cx.drawImage(S.shot.img,0,0,cv.width,cv.height);
+  strokeRoute(cx, S.route.shot.map(p=>({x:p.rx*cv.width, y:p.ry*cv.height})), Math.max(1, cv.width/700));
   S.markers.filter(m=>m.mode==="shot").forEach(function(m){
     drawBadge(cx, m.rx*cv.width, m.ry*cv.height, m.type, S.labels?m.label:"", Math.max(14, cv.width*0.022), cv);
   });
@@ -640,6 +705,7 @@ cv.addEventListener("click", function(e){
   if(!S.tool){ toast("Select a marker tool"); return; }
   const r=cv.getBoundingClientRect();
   const rx=(e.clientX-r.left)/r.width, ry=(e.clientY-r.top)/r.height;
+  if(S.tool==="ROUTE"){ S.route.shot.push({rx:rx, ry:ry}); drawShot(); updateRouteBar(); touch(); return; }
   S.markers.push({id:++S.mid, mode:"shot", type:S.tool, rx:rx, ry:ry, label:""});
   drawShot(); renderMk(); syncMarkerFields(); touch();
 });
@@ -648,7 +714,7 @@ function setMapMode(mode){
   $("#liveWrap").style.display = mode==="live" ? "" : "none";
   $("#shotWrap").style.display = mode==="shot" ? "" : "none";
   if(mode==="live" && map) setTimeout(()=>map.invalidateSize(),60);
-  renderMk(); syncMarkerFields(); touch();
+  renderMk(); syncMarkerFields(); updateRouteBar(); touch();
 }
 
 /* ============ marker list ============ */
@@ -742,6 +808,7 @@ async function captureMap(){
     if(!S.shot) return null;
     const c=document.createElement("canvas"); c.width=cv.width; c.height=cv.height;
     const g=c.getContext("2d"); g.drawImage(S.shot.img,0,0,c.width,c.height);
+    strokeRoute(g, S.route.shot.map(p=>({x:p.rx*c.width, y:p.ry*c.height})), Math.max(1,c.width/700));
     const h=Math.max(15,c.width*0.024);
     S.markers.filter(m=>m.mode==="shot").forEach(function(m){
       drawBadge(g, m.rx*c.width, m.ry*c.height, m.type, S.labels?m.label:"", h, c);
@@ -758,6 +825,9 @@ async function captureMap(){
   const ok=await paintTiles(g, TILE, z, pb, TS);
   if(!ok) return null;
   if(S.roads) for(let i=0;i<ROAD_TILES.length;i++) await paintTiles(g, ROAD_TILES[i], z, pb, TS);
+  strokeRoute(g, S.route.live.map(function(p){
+    const q=map.project([p.lat,p.lng], z); return {x:q.x-pb.min.x, y:q.y-pb.min.y};
+  }), 1);
   S.markers.filter(m=>m.mode==="live").forEach(function(m){
     const p=map.project([m.lat,m.lng], z);
     drawBadge(g, p.x-pb.min.x, p.y-pb.min.y, m.type, S.labels?m.label:"", 17, {width:size.x, height:size.y});
@@ -1075,6 +1145,7 @@ function buildPdf(mapCap){
   const gx0=PM+8, gx1=PM+PW-8, gy0=top+22, gy1=y+BAR+skH+PAD-8;
   const activeMk=S.markers.filter(m=>m.mode===S.mapMode);
   const legItems = activeMk.filter(m=>m.label).map(m=>m.type+": "+m.label);
+  if(typeof routeLabel==="function" && routeLabel()) legItems.unshift(routeLabel());
   const legendLines = (function(){
     if(!legItems.length) return [];
     doc.setFont("helvetica","normal"); doc.setFontSize(7);
@@ -1254,6 +1325,7 @@ function serialize(){
     autof:Object.assign({},S.autof),
     caps:S.captures.map(c=>({id:c.id,url:c.url,w:c.w,h:c.h,caption:c.caption})),
     roads:!!S.roads, labels:S.labels!==false,
+    route:{live:S.route.live.slice(), shot:S.route.shot.slice()},
     shot:null, view:null, ts:Date.now() };
   if(map){ const c=map.getCenter(); st.view={lat:c.lat,lng:c.lng,z:map.getZoom()}; }
   if(S.shotURL && S.shotURL.length<2500000) st.shot=S.shotURL;
@@ -1284,6 +1356,8 @@ function applyState(st){
   S.autof=st.autof||{};
   S.captures=(st.caps||[]).map(c=>({id:c.id||++S.mid, url:c.url, w:c.w, h:c.h, caption:c.caption||""}));
   renderCaps();
+  S.route={live:(st.route&&st.route.live)||[], shot:(st.route&&st.route.shot)||[]};
+  drawRoute();
   setRoads(!!st.roads);
   setLabels(st.labels!==false);
   $$("[data-k]").forEach(function(el){
@@ -1794,6 +1868,64 @@ $("#btnApplyPlan").addEventListener("click", function(){
   toast("Applied — review page 1 before you brief");
 });
 
+
+$("#btnRouteUndo").addEventListener("click", function(){
+  const arr = S.mapMode==="live" ? S.route.live : S.route.shot;
+  if(!arr.length){ toast("No route points"); return; }
+  arr.pop();
+  if(S.mapMode==="live") drawRoute(); else { drawShot(); updateRouteBar(); }
+  touch();
+});
+$("#btnRouteClear").addEventListener("click", function(){
+  const b=this;
+  if(b.dataset.armed==="1"){
+    if(S.mapMode==="live"){ S.route.live=[]; drawRoute(); } else { S.route.shot=[]; drawShot(); updateRouteBar(); }
+    b.dataset.armed="0"; b.textContent="Clear route"; touch(); toast("Route cleared");
+  } else {
+    b.dataset.armed="1"; b.textContent="Tap again to clear";
+    setTimeout(function(){ b.dataset.armed="0"; b.textContent="Clear route"; }, 4000);
+  }
+});
+
+/* ---- screenshot / photo OCR ---- */
+async function loadFirst(urls){
+  for(let i=0;i<urls.length;i++){
+    try{ await loadScript(urls[i]); if(window.Tesseract) return true; }catch(e){}
+  }
+  return !!window.Tesseract;
+}
+$("#planImgs").addEventListener("change", async function(e){
+  const files=Array.from(e.target.files||[]); e.target.value="";
+  if(!files.length) return;
+  const btn=$("#btnParsePlan"); btn.disabled=true;
+  try{
+    if(!window.Tesseract){
+      toast("Loading OCR engine — first run downloads ~15 MB, use wifi");
+      const ok=await loadFirst([
+        "https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js",
+        "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js",
+        "https://unpkg.com/tesseract.js@5/dist/tesseract.min.js"]);
+      if(!ok) throw new Error("engine unavailable");
+    }
+    let all="";
+    for(let i=0;i<files.length;i++){
+      btn.textContent="Reading "+(i+1)+"/"+files.length+"…";
+      const res=await window.Tesseract.recognize(files[i], "eng", {
+        logger:function(m){
+          if(m && m.status==="recognizing text")
+            btn.textContent="Reading "+(i+1)+"/"+files.length+" — "+Math.round((m.progress||0)*100)+"%";
+        }});
+      all += (res && res.data ? res.data.text : "") + "\n\n";
+    }
+    const prev=$("#planText").value.trim();
+    $("#planText").value = prev ? prev+"\n\n"+all : all;
+    if(all.replace(/\s/g,"").length<40) toast("Very little text recognized — try a sharper screenshot");
+    else doParsePlan();
+  }catch(err){
+    toast("OCR unavailable — paste the plan text instead");
+  }finally{ btn.disabled=false; btn.textContent="Read plan"; }
+});
+
 /* boot */
 initMap();
 $("#btnRoads").addEventListener("click", function(){ setRoads(!S.roads); });
@@ -1826,7 +1958,7 @@ if(store){
   catch(e){}
   renderSaves();
 }
-renderRosterChips(); renderRosterEditor(); renderCaps();
+renderRosterChips(); renderRosterEditor(); renderCaps(); updateRouteBar();
 </script>
 </body>
 </html>
