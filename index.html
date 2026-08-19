@@ -83,6 +83,10 @@ input::placeholder,textarea::placeholder{color:#5C6670}
 .mkchips button.on[data-val=STG]{background:var(--amber); border-color:var(--amber)}
 .mkchips button.on[data-val=LZ]{background:var(--vio); border-color:var(--vio)}
 .mklist{display:grid; gap:8px}
+.capitem{display:grid; grid-template-columns:78px 1fr 44px; gap:8px; align-items:center;
+  background:var(--field); border:1px solid var(--line); border-radius:9px; padding:8px}
+.capitem img{width:78px; height:50px; object-fit:cover; border-radius:6px; border:1px solid var(--line); display:block}
+button.on{background:var(--amber); border-color:var(--amber); color:#000; font-weight:800}
 .mkitem{display:grid; grid-template-columns:52px 1fr 44px; gap:8px; align-items:center}
 .mkbadge{font-weight:800; font-size:12px; text-align:center; color:#fff; border-radius:6px; padding:8px 0; border:1px solid #000}
 .b-TGT{background:var(--red)} .b-CCP{background:var(--grn)} .b-AEP{background:var(--blu)}
@@ -157,6 +161,7 @@ footer{max-width:760px; margin:0 auto; padding:0 14px 30px; font-size:11px; colo
       <button data-val="Barricade">Barricade</button>
       <button data-val="Hostage">Hostage</button>
       <button data-val="High-Risk Arrest">High-Risk Arrest</button>
+      <button data-val="Security Detail">Security Detail</button>
       <button data-val="Other">Other</button>
     </div>
   </div>
@@ -312,6 +317,7 @@ footer{max-width:760px; margin:0 auto; padding:0 14px 30px; font-size:11px; colo
       <input type="text" id="addr" placeholder="Search address" autocomplete="off">
       <button id="btnGo">Go</button>
       <button id="btnLoc" title="Use my location">◎</button>
+      <button id="btnRoads" title="Toggle road &amp; place labels">Roads</button>
     </div>
     <div id="map"></div>
   </div>
@@ -330,6 +336,11 @@ footer{max-width:760px; margin:0 auto; padding:0 14px 30px; font-size:11px; colo
     </div>
   </div>
   <div class="mklist" id="mklist"></div>
+  <div class="inline" style="margin-top:2px">
+    <button id="btnCapture" class="btn-amber">Capture view → appendix</button>
+    <span class="hint" id="capCount"></span>
+  </div>
+  <div class="mklist" id="caplist"></div>
   <div class="hint">Pins auto-fill their fields — 1st CCP/AEP = primary, 2nd = alternate; TGT → op location, STG → staging, LZ → LZ. Address fills in from the pin position (lat/long if no signal); edit the pin label to rename. Typed-in fields are never overwritten. Imagery: Esri</div>
 </div></section>
 
@@ -393,7 +404,7 @@ footer{max-width:760px; margin:0 auto; padding:0 14px 30px; font-size:11px; colo
 "use strict";
 /* ============ state ============ */
 const S = { v:{}, multi:{ optype:new Set(), occ:new Set(), hazchips:new Set() }, tool:null,
-            mapMode:"live", markers:[], shot:null, mid:0, autof:{} };
+            mapMode:"live", markers:[], shot:null, mid:0, autof:{}, captures:[], roads:false };
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const MK = { TGT:"#FF4747", CCP:"#35C46A", AEP:"#3AA0FF", STG:"#FFB020", LZ:"#C77DFF" };
@@ -464,6 +475,20 @@ function markSeg(seg, onBtn, force){
 /* ============ live map ============ */
 let map=null;
 const TILE="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+const ROAD_TILES=[
+  "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}",
+  "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"];
+let roadLayers=[];
+function setRoads(on){
+  S.roads=!!on;
+  if(map){
+    if(!roadLayers.length)
+      roadLayers=ROAD_TILES.map(u=>L.tileLayer(u,{maxZoom:19, crossOrigin:"anonymous", opacity:0.95}));
+    roadLayers.forEach(function(l){ if(S.roads) l.addTo(map); else if(map.hasLayer(l)) map.removeLayer(l); });
+  }
+  const b=$("#btnRoads"); if(b) b.classList.toggle("on", S.roads);
+  touch();
+}
 function initMap(){
   map=L.map("map",{zoomSnap:1, zoomControl:true}).setView([41.68,-70.33],11);
   L.tileLayer(TILE,{maxZoom:19, crossOrigin:"anonymous", attribution:"Esri World Imagery"}).addTo(map);
@@ -659,12 +684,40 @@ function loadImg(src){ return new Promise(function(res,rej){
   const im=new Image(); im.crossOrigin="anonymous";
   im.onload=()=>res(im); im.onerror=rej; im.src=src; }); }
 
+async function paintTiles(g, tpl, z, pb, TS){
+  const x0=Math.floor(pb.min.x/TS), x1=Math.floor(pb.max.x/TS);
+  const y0=Math.floor(pb.min.y/TS), y1=Math.floor(pb.max.y/TS);
+  const jobs=[]; let ok=0;
+  for(let tx=x0;tx<=x1;tx++) for(let ty=y0;ty<=y1;ty++){
+    const url=tpl.replace("{z}",z).replace("{x}",tx).replace("{y}",ty);
+    jobs.push(loadImg(url).then(function(im){
+      g.drawImage(im, tx*TS-pb.min.x, ty*TS-pb.min.y, TS, TS); ok++;
+    }).catch(function(){}));
+  }
+  await Promise.all(jobs);
+  return ok;
+}
+/* label collision guard — badge always draws, text skipped if it would overlap */
+function labelSlot(g, placed, x, y, label, h){
+  if(!label) return false;
+  g.font="700 "+(h*0.66)+"px -apple-system,Helvetica,Arial,sans-serif";
+  const w=g.measureText(label).width, r={x0:x-w/2, y0:y+h*0.5, x1:x+w/2, y1:y+h*1.5};
+  for(let i=0;i<placed.length;i++){
+    const p=placed[i];
+    if(!(r.x1<p.x0 || r.x0>p.x1 || r.y1<p.y0 || r.y0>p.y1)) return false;
+  }
+  placed.push(r); return true;
+}
 async function captureMap(){
   if(S.mapMode==="shot"){
     if(!S.shot) return null;
     const c=document.createElement("canvas"); c.width=cv.width; c.height=cv.height;
     const g=c.getContext("2d"); g.drawImage(S.shot.img,0,0,c.width,c.height);
-    S.markers.filter(m=>m.mode==="shot").forEach(m=>drawBadge(g, m.rx*c.width, m.ry*c.height, m.type, m.label, Math.max(15,c.width*0.024)));
+    const h=Math.max(15,c.width*0.024), placed=[];
+    S.markers.filter(m=>m.mode==="shot").forEach(function(m){
+      const px=m.rx*c.width, py=m.ry*c.height;
+      drawBadge(g, px, py, m.type, labelSlot(g,placed,px,py,m.label,h)?m.label:"", h);
+    });
     northArrow(g, c.width, c.height);
     return {url:c.toDataURL("image/jpeg",0.88), w:c.width, h:c.height};
   }
@@ -674,20 +727,13 @@ async function captureMap(){
   const c=document.createElement("canvas"); c.width=size.x*scale; c.height=size.y*scale;
   const g=c.getContext("2d"); g.scale(scale,scale);
   g.fillStyle="#111"; g.fillRect(0,0,size.x,size.y);
-  const x0=Math.floor(pb.min.x/TS), x1=Math.floor(pb.max.x/TS);
-  const y0=Math.floor(pb.min.y/TS), y1=Math.floor(pb.max.y/TS);
-  const jobs=[]; let ok=0;
-  for(let tx=x0;tx<=x1;tx++) for(let ty=y0;ty<=y1;ty++){
-    const url=TILE.replace("{z}",z).replace("{x}",tx).replace("{y}",ty);
-    jobs.push(loadImg(url).then(function(im){
-      g.drawImage(im, tx*TS-pb.min.x, ty*TS-pb.min.y, TS, TS); ok++;
-    }).catch(function(){}));
-  }
-  await Promise.all(jobs);
+  const ok=await paintTiles(g, TILE, z, pb, TS);
   if(!ok) return null;
+  if(S.roads) for(let i=0;i<ROAD_TILES.length;i++) await paintTiles(g, ROAD_TILES[i], z, pb, TS);
+  const placed=[];
   S.markers.filter(m=>m.mode==="live").forEach(function(m){
-    const p=map.project([m.lat,m.lng], z);
-    drawBadge(g, p.x-pb.min.x, p.y-pb.min.y, m.type, m.label, 17);
+    const p=map.project([m.lat,m.lng], z), px=p.x-pb.min.x, py=p.y-pb.min.y;
+    drawBadge(g, px, py, m.type, labelSlot(g,placed,px,py,m.label,17)?m.label:"", 17);
   });
   northArrow(g, size.x, size.y);
   g.fillStyle="rgba(0,0,0,.55)"; g.fillRect(0,size.y-11,86,11);
@@ -695,6 +741,59 @@ async function captureMap(){
   g.fillText("Imagery: Esri", 4, size.y-5.5);
   return {url:c.toDataURL("image/jpeg",0.88), w:size.x, h:size.y};
 }
+
+/* ============ appendix captures ============ */
+const CAP_MAX=6;
+function downscale(dataUrl, maxW, q){
+  return new Promise(function(res){
+    const im=new Image();
+    im.onload=function(){
+      const sc=Math.min(1, maxW/im.naturalWidth);
+      const c=document.createElement("canvas");
+      c.width=Math.round(im.naturalWidth*sc); c.height=Math.round(im.naturalHeight*sc);
+      c.getContext("2d").drawImage(im,0,0,c.width,c.height);
+      res({url:c.toDataURL("image/jpeg",q), w:c.width, h:c.height});
+    };
+    im.onerror=function(){ res(null); };
+    im.src=dataUrl;
+  });
+}
+$("#btnCapture").addEventListener("click", async function(){
+  if(S.captures.length>=CAP_MAX){ toast("Appendix full — "+CAP_MAX+" captures max"); return; }
+  const b=this; b.disabled=true; b.textContent="Capturing…";
+  try{
+    const cap=await captureMap();
+    if(!cap){ toast(S.mapMode==="shot" ? "Load a screenshot first" : "Map tiles unavailable — check signal"); return; }
+    const small=await downscale(cap.url, 1000, 0.8) || cap;
+    S.captures.push({id:++S.mid, url:small.url, w:small.w, h:small.h, caption:""});
+    renderCaps(); touch();
+    toast("Capture "+S.captures.length+" added to appendix");
+  }catch(err){ toast("Capture failed — "+(err&&err.message?err.message:"unknown")); }
+  finally{ b.disabled=false; b.textContent="Capture view → appendix"; }
+});
+let pendingCapRender=false;
+function renderCaps(){
+  const host=$("#caplist"), cnt=$("#capCount"); if(!host) return;
+  if(cnt) cnt.textContent = S.captures.length ? S.captures.length+" of "+CAP_MAX+" · prints as appendix pages" : "";
+  if(document.activeElement && host.contains(document.activeElement)){ pendingCapRender=true; return; }
+  host.innerHTML="";
+  S.captures.forEach(function(c,i){
+    const row=document.createElement("div"); row.className="capitem";
+    row.innerHTML='<img alt="capture '+(i+1)+'" src="'+c.url+'">'+
+      '<input type="text" placeholder="Caption — e.g. Sector 1, west end" value="'+escHtml(c.caption)+'">'+
+      '<button aria-label="Delete">✕</button>';
+    row.querySelector("input").addEventListener("input", ev=>{ c.caption=ev.target.value; touch(); });
+    row.querySelector("button").addEventListener("click", function(){
+      S.captures=S.captures.filter(x=>x.id!==c.id); renderCaps(); touch();
+    });
+    host.appendChild(row);
+  });
+}
+document.addEventListener("focusout", function(e){
+  if(pendingCapRender && e.target && e.target.closest && e.target.closest("#caplist")){
+    pendingCapRender=false; setTimeout(renderCaps,50);
+  }
+});
 function northArrow(g,w,h){
   const x=w-22, y=16, s=Math.max(10, w*0.012);
   g.save(); g.strokeStyle="#000"; g.fillStyle="#fff"; g.lineWidth=s*0.35; g.lineJoin="round";
@@ -727,7 +826,7 @@ function pdfHelpers(doc){
     if(val){
       let size=8; doc.setFont("helvetica","normal");
       doc.setFontSize(size);
-      while(doc.getTextWidth(val)>w-4 && size>6){ size-=0.5; doc.setFontSize(size); }
+      while(doc.getTextWidth(val)>w-4 && size>5.5){ size-=0.25; doc.setFontSize(size); }
       while(doc.getTextWidth(val)>w-4 && val.length>1){ val=val.slice(0,-2)+"…"; }
       doc.setTextColor(0); doc.text(val, x+2, y);
     }
@@ -790,7 +889,9 @@ function buildPdf(mapCap){
   let y, s, x;
 
   /* ---------- PAGE 1 ---------- */
-  y=H.header("Page 1 of 2 — Operational  |  Completed digitally via TEMS TL app");
+  const caps=(S.captures||[]).filter(c=>c && c.url);
+  const NP=2+Math.ceil(caps.length/2);
+  y=H.header("Page 1 of "+NP+" — Operational  |  Completed digitally via TEMS TL app");
 
   s=H.sec(y,"OPERATION",3);
   x=H.lab(PM+5,s.r[0],"Date:"); x=H.tf(x+3,s.r[0],62,fmtDate(v("date")));
@@ -799,7 +900,7 @@ function buildPdf(mapCap){
   x=H.lab(x+8,s.r[0],"Sunset:"); x=H.tf(x+3,s.r[0],42,v("sunset"));
   x=H.lab(x+8,s.r[0],"Weather:"); H.tf(x+3,s.r[0],PM+PW-x-8,v("weather"));
   x=H.lab(PM+5,s.r[1],"Op Type:",8,true); x+=4;
-  ["Warrant","Barricade","Hostage","High-Risk Arrest"].forEach(function(t){ x=H.opt(x,s.r[1],t,S.multi.optype.has(t)); });
+  ["Warrant","Barricade","Hostage","High-Risk Arrest","Security Detail"].forEach(function(t){ x=H.opt(x,s.r[1],t,S.multi.optype.has(t),7); });
   x=H.opt(x,s.r[1],"Other:",S.multi.optype.has("Other"));
   H.tf(x,s.r[1],PM+PW-x-8, S.multi.optype.has("Other")?v("optypeOther"):"");
   x=H.lab(PM+5,s.r[2],"Operation Location:"); H.tf(x+3,s.r[2],PM+PW-x-8,v("oploc"));
@@ -840,16 +941,17 @@ function buildPdf(mapCap){
   y=s.bottom+6;
 
   s=H.sec(y,"TEMS PERSONNEL   ( NAME  /  ASSIGNMENT )   &   WHOLE BLOOD",7,16);
+  const NW=104;
   for(let i=0;i<5;i++){
     const rr=s.r[i];
     H.lab(PM+5,rr,(i+1)+".",8,true);
-    x=H.tf(PM+22,rr,145,v("med"+(i+1)+"n"));
+    x=H.tf(PM+22,rr,NW,v("med"+(i+1)+"n"));
     x=H.lab(x+3,rr,"/");
-    H.tf(x+4,rr,half-x-14,v("med"+(i+1)+"a"));
+    H.tf(x+4,rr,half-x-12,v("med"+(i+1)+"a"));
     H.lab(half+4,rr,(i+6)+".",8,true);
-    x=H.tf(half+22,rr,145,v("med"+(i+6)+"n"));
+    x=H.tf(half+22,rr,NW,v("med"+(i+6)+"n"));
     x=H.lab(x+3,rr,"/");
-    H.tf(x+4,rr,PM+PW-x-10,v("med"+(i+6)+"a"));
+    H.tf(x+4,rr,PM+PW-x-8,v("med"+(i+6)+"a"));
   }
   x=H.lab(PM+5,s.r[5],"Specialty resources on scene:");
   H.tf(x+3,s.r[5],PM+PW-x-8,v("specialty"));
@@ -918,7 +1020,7 @@ function buildPdf(mapCap){
 
   /* ---------- PAGE 2 ---------- */
   doc.addPage();
-  y=H.header("Page 2 of 2 — Support & Reference");
+  y=H.header("Page 2 of "+NP+" — Support & Reference");
 
   s=H.sec(y,"LOCAL FIRE DEPARTMENT",3);
   x=H.lab(PM+5,s.r[0],"Department:"); H.tf(x+3,s.r[0],half-x-12,v("fddept"));
@@ -945,8 +1047,20 @@ function buildPdf(mapCap){
   doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.text("N", nx+6, top+12);
   const gx0=PM+8, gx1=PM+PW-8, gy0=top+22, gy1=y+BAR+skH+PAD-8;
   const activeMk=S.markers.filter(m=>m.mode===S.mapMode);
-  const legendLines = activeMk.filter(m=>m.label).map(m=>m.type+": "+m.label);
-  const legH = legendLines.length ? 12+Math.min(1,Math.floor((legendLines.length-1)/3))*9 : 0;
+  const legItems = activeMk.filter(m=>m.label).map(m=>m.type+": "+m.label);
+  const legendLines = (function(){
+    if(!legItems.length) return [];
+    doc.setFont("helvetica","normal"); doc.setFontSize(7);
+    const sep="   •   ", out=[]; let cur="";
+    legItems.forEach(function(it){
+      const test=cur?cur+sep+it:it;
+      if(doc.getTextWidth(test)<=PW-16 || !cur) cur=test; else { out.push(cur); cur=it; }
+    });
+    if(cur) out.push(cur);
+    if(out.length>2){ let last=out[1]; while(doc.getTextWidth(last+" …")>PW-16 && last.length>4) last=last.slice(0,-2); out.length=2; out[1]=last+" …"; }
+    return out;
+  })();
+  const legH = legendLines.length ? legendLines.length*9+3 : 0;
   const imgBottom = gy1-legH;
   if(mapCap){
     const boxW=gx1-gx0, boxH=imgBottom-gy0;
@@ -964,10 +1078,9 @@ function buildPdf(mapCap){
   }
   if(legendLines.length){
     doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(0);
-    let line=legendLines.join("   •   ");
-    doc.setFontSize(7);
-    while(doc.getTextWidth(line)>PW-16 && line.length>4) line=line.slice(0,-2)+"…";
-    doc.text(line, PM+8, gy1-2);
+    legendLines.forEach(function(ln,i){
+      doc.text(ln, PM+8, gy1-2-(legendLines.length-1-i)*9);
+    });
   }
   y=s.bottom+6;
 
@@ -1028,6 +1141,25 @@ function buildPdf(mapCap){
   x=H.lab(PM+5,s.r[0],"TEMS TL:",8,true); x=H.tf(x+3,s.r[0],205,v("temstl"));
   x=H.lab(x+16,s.r[0],"Tactical Commander:",8,true); H.tf(x+3,s.r[0],PM+PW-x-8,v("taccom"));
   H.footer();
+
+  /* ---------- APPENDIX: MAP CAPTURES ---------- */
+  const BLK=330;
+  caps.forEach(function(c,i){
+    if(i%2===0){
+      doc.addPage();
+      y=H.header("Page "+(3+i/2)+" of "+NP+" — Appendix: Scene Map Captures");
+    }
+    const by = (i%2===0) ? y : y+BLK+6;
+    const title = (c.caption||"").trim() || ("Capture "+(i+1));
+    const sc=H.sec(by, ("CAPTURE "+(i+1)+"  —  "+title).toUpperCase(), 0, LH, BLK-BAR-PAD);
+    const bx0=PM+8, bw=PW-16, by0=by+BAR+6, bh=BLK-BAR-14;
+    doc.setFillColor(238); doc.rect(bx0,by0,bw,bh,"F");
+    const rto=Math.min(bw/c.w, bh/c.h), iw=c.w*rto, ih=c.h*rto;
+    const ix=bx0+(bw-iw)/2, iy=by0+(bh-ih)/2;
+    doc.addImage(c.url,"JPEG",ix,iy,iw,ih);
+    doc.setLineWidth(0.6); doc.setDrawColor(0); doc.rect(ix,iy,iw,ih);
+    if(i%2===1 || i===caps.length-1) H.footer();
+  });
 
   return doc;
 }
@@ -1093,16 +1225,28 @@ function serialize(){
     live:S.markers.filter(m=>m.mode==="live").map(m=>({type:m.type,lat:m.lat,lng:m.lng,label:m.label,addr:m.addr||null,ed:!!m.labelEdited})),
     shotM:S.markers.filter(m=>m.mode==="shot").map(m=>({type:m.type,rx:m.rx,ry:m.ry,label:m.label})),
     autof:Object.assign({},S.autof),
+    caps:S.captures.map(c=>({id:c.id,url:c.url,w:c.w,h:c.h,caption:c.caption})),
+    roads:!!S.roads,
     shot:null, view:null, ts:Date.now() };
   if(map){ const c=map.getCenter(); st.view={lat:c.lat,lng:c.lng,z:map.getZoom()}; }
   if(S.shotURL && S.shotURL.length<2500000) st.shot=S.shotURL;
   return st;
 }
+let capWarned=false;
 function touch(){
   if(!store) return;
   clearTimeout(dirtyT);
   dirtyT=setTimeout(function(){
-    try{ store.setItem(AUTOKEY, JSON.stringify(serialize())); }catch(e){}
+    try{ store.setItem(AUTOKEY, JSON.stringify(serialize())); capWarned=false; }
+    catch(e){
+      try{
+        const st=serialize(); st.caps=[]; st.capsDropped=true;
+        store.setItem(AUTOKEY, JSON.stringify(st));
+        if(!capWarned){ capWarned=true; toast("Autosave full — captures held in memory only. Back up to a file."); }
+      }catch(e2){
+        if(!capWarned){ capWarned=true; toast("Autosave full — back up to a file."); }
+      }
+    }
   }, 500);
 }
 function applyState(st){
@@ -1111,6 +1255,9 @@ function applyState(st){
   S.multi.optype=new Set(st.optype||[]); S.multi.occ=new Set(st.occ||[]);
   S.multi.hazchips=new Set(st.hazchips||[]);
   S.autof=st.autof||{};
+  S.captures=(st.caps||[]).map(c=>({id:c.id||++S.mid, url:c.url, w:c.w, h:c.h, caption:c.caption||""}));
+  renderCaps();
+  setRoads(!!st.roads);
   $$("[data-k]").forEach(function(el){
     if(el.tagName==="INPUT"||el.tagName==="TEXTAREA") el.value=S.v[el.getAttribute("data-k")]||"";
   });
@@ -1320,6 +1467,7 @@ $("#btnWx").addEventListener("click", async function(){
 
 /* boot */
 initMap();
+$("#btnRoads").addEventListener("click", function(){ setRoads(!S.roads); });
 map.on("dragend", function(){ mapMoved=true; });
 map.on("moveend", function(){ touch(); });
 if(!store) $("#storeNote").hidden=false;
@@ -1329,7 +1477,7 @@ if(store){
   catch(e){}
   renderSaves();
 }
-renderRosterChips(); renderRosterEditor();
+renderRosterChips(); renderRosterEditor(); renderCaps();
 </script>
 </body>
 </html>
