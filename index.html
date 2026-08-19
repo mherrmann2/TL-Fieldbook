@@ -318,6 +318,7 @@ footer{max-width:760px; margin:0 auto; padding:0 14px 30px; font-size:11px; colo
       <button id="btnGo">Go</button>
       <button id="btnLoc" title="Use my location">◎</button>
       <button id="btnRoads" title="Toggle road &amp; place labels">Roads</button>
+      <button id="btnLabels" title="Print marker labels on the map image">Labels</button>
     </div>
     <div id="map"></div>
   </div>
@@ -341,7 +342,7 @@ footer{max-width:760px; margin:0 auto; padding:0 14px 30px; font-size:11px; colo
     <span class="hint" id="capCount"></span>
   </div>
   <div class="mklist" id="caplist"></div>
-  <div class="hint">Pins auto-fill their fields — 1st CCP/AEP = primary, 2nd = alternate; TGT → op location, STG → staging, LZ → LZ. Address fills in from the pin position (lat/long if no signal); edit the pin label to rename. Typed-in fields are never overwritten. Imagery: Esri</div>
+  <div class="hint">Pins auto-fill their fields — 1st CCP/AEP = primary, 2nd = alternate; TGT → op location, STG → staging, LZ → LZ. Address fills in from the pin position (lat/long if no signal); edit the pin label to rename. Labels toggle controls text on the map image — the legend under it always lists every marker. Typed-in fields are never overwritten. Imagery: Esri</div>
 </div></section>
 
 <section class="sec"><div class="bar">Aeromedical — Boston MedFlight</div><div class="bd">
@@ -404,7 +405,7 @@ footer{max-width:760px; margin:0 auto; padding:0 14px 30px; font-size:11px; colo
 "use strict";
 /* ============ state ============ */
 const S = { v:{}, multi:{ optype:new Set(), occ:new Set(), hazchips:new Set() }, tool:null,
-            mapMode:"live", markers:[], shot:null, mid:0, autof:{}, captures:[], roads:false };
+            mapMode:"live", markers:[], shot:null, mid:0, autof:{}, captures:[], roads:false, labels:true };
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const MK = { TGT:"#FF4747", CCP:"#35C46A", AEP:"#3AA0FF", STG:"#FFB020", LZ:"#C77DFF" };
@@ -607,7 +608,7 @@ function drawShot(){
   cv.width=Math.round(S.shot.w*sc); cv.height=Math.round(S.shot.h*sc);
   cx.drawImage(S.shot.img,0,0,cv.width,cv.height);
   S.markers.filter(m=>m.mode==="shot").forEach(function(m){
-    drawBadge(cx, m.rx*cv.width, m.ry*cv.height, m.type, m.label, Math.max(14, cv.width*0.022));
+    drawBadge(cx, m.rx*cv.width, m.ry*cv.height, m.type, S.labels?m.label:"", Math.max(14, cv.width*0.022), cv);
   });
 }
 cv.addEventListener("click", function(e){
@@ -658,8 +659,8 @@ document.addEventListener("focusout", function(e){
 });
 function escHtml(s){ return String(s||"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
-/* badge painter shared by canvas + capture */
-function drawBadge(ctx, x, y, type, label, h){
+/* badge painter shared by canvas + capture; bounds optional {width,height} keeps labels on-image */
+function drawBadge(ctx, x, y, type, label, h, bounds){
   h=h||16; const w=h*2.1;
   ctx.save();
   ctx.fillStyle=MK[type]; ctx.strokeStyle="#000"; ctx.lineWidth=Math.max(1.5,h*0.1);
@@ -670,8 +671,16 @@ function drawBadge(ctx, x, y, type, label, h){
   ctx.fillText(type, x, y+h*0.03);
   if(label){
     ctx.font="700 "+(h*0.66)+"px -apple-system,Helvetica,Arial,sans-serif";
+    let lx=x, ly=y+h*1.05;
+    if(bounds){
+      const cw=bounds.width, ch=bounds.height, pad=3;
+      const tw=ctx.measureText(label).width;
+      lx=Math.max(tw/2+pad, Math.min(cw-tw/2-pad, x));
+      if(ly+h*0.55 > ch-pad) ly=y-h*0.85;          // too close to bottom → sit above badge
+      if(ly-h*0.55 < pad) ly=y+h*1.05;             // …unless that would clip the top
+    }
     ctx.lineWidth=h*0.22; ctx.strokeStyle="rgba(0,0,0,.85)"; ctx.lineJoin="round";
-    ctx.strokeText(label, x, y+h*1.05); ctx.fillStyle="#fff"; ctx.fillText(label, x, y+h*1.05);
+    ctx.strokeText(label, lx, ly); ctx.fillStyle="#fff"; ctx.fillText(label, lx, ly);
   }
   ctx.restore();
 }
@@ -697,26 +706,21 @@ async function paintTiles(g, tpl, z, pb, TS){
   await Promise.all(jobs);
   return ok;
 }
-/* label collision guard — badge always draws, text skipped if it would overlap */
-function labelSlot(g, placed, x, y, label, h){
-  if(!label) return false;
-  g.font="700 "+(h*0.66)+"px -apple-system,Helvetica,Arial,sans-serif";
-  const w=g.measureText(label).width, r={x0:x-w/2, y0:y+h*0.5, x1:x+w/2, y1:y+h*1.5};
-  for(let i=0;i<placed.length;i++){
-    const p=placed[i];
-    if(!(r.x1<p.x0 || r.x0>p.x1 || r.y1<p.y0 || r.y0>p.y1)) return false;
-  }
-  placed.push(r); return true;
+/* labels toggle */
+function setLabels(on){
+  S.labels=!!on;
+  const b=$("#btnLabels"); if(b) b.classList.toggle("on", S.labels);
+  if(S.mapMode==="shot") drawShot();
+  touch();
 }
 async function captureMap(){
   if(S.mapMode==="shot"){
     if(!S.shot) return null;
     const c=document.createElement("canvas"); c.width=cv.width; c.height=cv.height;
     const g=c.getContext("2d"); g.drawImage(S.shot.img,0,0,c.width,c.height);
-    const h=Math.max(15,c.width*0.024), placed=[];
+    const h=Math.max(15,c.width*0.024);
     S.markers.filter(m=>m.mode==="shot").forEach(function(m){
-      const px=m.rx*c.width, py=m.ry*c.height;
-      drawBadge(g, px, py, m.type, labelSlot(g,placed,px,py,m.label,h)?m.label:"", h);
+      drawBadge(g, m.rx*c.width, m.ry*c.height, m.type, S.labels?m.label:"", h, c);
     });
     northArrow(g, c.width, c.height);
     return {url:c.toDataURL("image/jpeg",0.88), w:c.width, h:c.height};
@@ -730,10 +734,9 @@ async function captureMap(){
   const ok=await paintTiles(g, TILE, z, pb, TS);
   if(!ok) return null;
   if(S.roads) for(let i=0;i<ROAD_TILES.length;i++) await paintTiles(g, ROAD_TILES[i], z, pb, TS);
-  const placed=[];
   S.markers.filter(m=>m.mode==="live").forEach(function(m){
-    const p=map.project([m.lat,m.lng], z), px=p.x-pb.min.x, py=p.y-pb.min.y;
-    drawBadge(g, px, py, m.type, labelSlot(g,placed,px,py,m.label,17)?m.label:"", 17);
+    const p=map.project([m.lat,m.lng], z);
+    drawBadge(g, p.x-pb.min.x, p.y-pb.min.y, m.type, S.labels?m.label:"", 17, {width:size.x, height:size.y});
   });
   northArrow(g, size.x, size.y);
   g.fillStyle="rgba(0,0,0,.55)"; g.fillRect(0,size.y-11,86,11);
@@ -1226,7 +1229,7 @@ function serialize(){
     shotM:S.markers.filter(m=>m.mode==="shot").map(m=>({type:m.type,rx:m.rx,ry:m.ry,label:m.label})),
     autof:Object.assign({},S.autof),
     caps:S.captures.map(c=>({id:c.id,url:c.url,w:c.w,h:c.h,caption:c.caption})),
-    roads:!!S.roads,
+    roads:!!S.roads, labels:S.labels!==false,
     shot:null, view:null, ts:Date.now() };
   if(map){ const c=map.getCenter(); st.view={lat:c.lat,lng:c.lng,z:map.getZoom()}; }
   if(S.shotURL && S.shotURL.length<2500000) st.shot=S.shotURL;
@@ -1258,6 +1261,7 @@ function applyState(st){
   S.captures=(st.caps||[]).map(c=>({id:c.id||++S.mid, url:c.url, w:c.w, h:c.h, caption:c.caption||""}));
   renderCaps();
   setRoads(!!st.roads);
+  setLabels(st.labels!==false);
   $$("[data-k]").forEach(function(el){
     if(el.tagName==="INPUT"||el.tagName==="TEXTAREA") el.value=S.v[el.getAttribute("data-k")]||"";
   });
@@ -1468,6 +1472,8 @@ $("#btnWx").addEventListener("click", async function(){
 /* boot */
 initMap();
 $("#btnRoads").addEventListener("click", function(){ setRoads(!S.roads); });
+$("#btnLabels").addEventListener("click", function(){ setLabels(!S.labels); });
+setLabels(true);
 map.on("dragend", function(){ mapMoved=true; });
 map.on("moveend", function(){ touch(); });
 if(!store) $("#storeNote").hidden=false;
