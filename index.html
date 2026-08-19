@@ -1355,8 +1355,8 @@ $("#restoreFile").addEventListener("change", function(e){
 
 /* ============ team roster ============ */
 const ROSTERKEY="tems_roster_v1", ROSTERVERKEY="tems_roster_ver", ROSTERCUSTKEY="tems_roster_custom";
-const ROSTER_VER=2;
-const DEFAULT_ROSTER=JSON.parse(atob("WyJBcnJhc2N1ZSwgRW5yaXF1ZSAoQ29udHJvbCBDaGllZikiLCAiSGVycm1hbm4sIE1pY2hhZWwgKFRMKSIsICJDYXJ1c28sIERhdmlkIChBVEwpIiwgIkFtaWNrLCBNaWNoYWVsIiwgIkJhdHppbmdlciwgUGV0ZXIiLCAiR2VvcmdlLCBQYXQiLCAiR291bGV0LCBKYWNvYiIsICJIaWNrZXksIFJ5YW4iLCAiS2FydGVyLCBTZXRoIiwgIk1vbnRlc3NpLCBUb3JyaSJd"));
+const ROSTER_VER=3;
+const DEFAULT_ROSTER=JSON.parse(atob("WyJBcnJhc2N1ZSwgRW5yaXF1ZSAoQ29udHJvbCBDaGllZikiLCAiSGVycm1hbm4sIE1pY2hhZWwgKFRMKSIsICJDYXJ1c28sIERhdmlkIChBVEwpIiwgIkFtaWNrLCBNaWNoYWVsIiwgIkJhdHppbmdlciwgUGV0ZXIiLCAiR2VvcmdlLCBQYXRyaWNrIiwgIkdvdWxldCwgSmFjb2IiLCAiSGlja2V5LCBSeWFuIiwgIkthcnRlciwgU2V0aCIsICJNb250ZXNpLCBUb3JyaSJd"));
 let rosterMem=DEFAULT_ROSTER.slice();
 /* seniority order: Chief → TL → ATL → alphabetical by last name */
 function rankOf(n){
