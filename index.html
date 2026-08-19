@@ -83,6 +83,11 @@ input::placeholder,textarea::placeholder{color:#5C6670}
 .mkchips button.on[data-val=STG]{background:var(--amber); border-color:var(--amber)}
 .mkchips button.on[data-val=LZ]{background:var(--vio); border-color:var(--vio)}
 .mklist{display:grid; gap:8px}
+.revitem{display:grid; grid-template-columns:26px 1fr; gap:9px; align-items:start;
+  background:var(--field); border:1px solid var(--line); border-radius:9px; padding:9px}
+.revitem input[type=checkbox]{width:22px; height:22px; accent-color:var(--amber); margin-top:3px}
+.revitem .rk{font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:var(--dim); margin:0 0 4px 1px}
+.revwarn{border:1px solid var(--amber); color:var(--amber); border-radius:9px; padding:9px 11px; font-size:12.5px}
 .capitem{display:grid; grid-template-columns:78px 1fr 44px; gap:8px; align-items:center;
   background:var(--field); border:1px solid var(--line); border-radius:9px; padding:8px}
 .capitem img{width:78px; height:50px; object-fit:cover; border-radius:6px; border:1px solid var(--line); display:block}
@@ -141,6 +146,24 @@ footer{max-width:760px; margin:0 auto; padding:0 14px 30px; font-size:11px; colo
       <label class="filelbl">Restore backup<input type="file" id="restoreFile" accept=".json,application/json" hidden></label>
     </div>
     <div class="hint">Autosave runs continuously on this device. Backup files go out the share sheet — save them to Google Drive or Files.</div>
+  </div>
+</details>
+
+<details class="opspanel" id="importPanel">
+  <summary>Import op plan — paste or PDF</summary>
+  <div class="bd" style="padding-top:8px">
+    <div class="fld"><label>Paste op plan text</label>
+      <textarea id="planText" rows="4" placeholder="Select all in the plan, copy, paste here"></textarea></div>
+    <div class="inline">
+      <label class="filelbl">Choose PDF<input type="file" id="planFile" accept="application/pdf,.pdf" hidden></label>
+      <button id="btnParsePlan" class="btn-amber">Read plan</button>
+    </div>
+    <div id="reviewWrap" style="display:none; margin-top:4px">
+      <div class="hint">Review before applying — nothing is written until you tap Apply.</div>
+      <div class="mklist" id="reviewList" style="margin-top:8px"></div>
+      <div id="missingNote"></div>
+      <button id="btnApplyPlan" class="btn-amber" style="margin-top:8px">Apply checked</button>
+    </div>
   </div>
 </details>
 
@@ -1501,6 +1524,274 @@ $("#btnWx").addEventListener("click", async function(){
     toast("WX + sun times filled ("+(c.src==="map"?"map location":"device location")+")");
   }catch(err){ toast("WX unavailable — check signal"); }
   finally{ b.disabled=false; b.textContent="Auto WX"; }
+});
+
+/* ============ op plan import ============ */
+const MONTHS={january:1,february:2,march:3,april:4,may:5,june:6,july:7,august:8,september:9,october:10,november:11,december:12};
+const UNIT_RE=/^(SWAT\s*\d+|Tactical\s+Command(?:\s+Staging)?|Bearcat|QRF|K-?9'?s?|CNT|Drone|TEMS|Sierra|MRT)\b/i;
+const VEHICLE_RE=/\b(SUV|Durango|Explorer|Tahoe|Equinox|Chevy|Ford|Dodge|Truck|Van|Cruiser|Sedan|Pickup|Bearcat)\b/i;
+const PLACE_RE=/\b(Monument|Hotel|Station|Harbor|Harbour|Hospital|Cent(?:er|re)|School|Lot|Park|Beach|Landing|Dentist|Automotive|Marina|Pier|Dock|Church|Library|Field|Garage|Plaza|Terminal|Airport)\b/i;
+const STREET_RE=/\d+\s+[A-Z][\w'.-]*(\s+[A-Z][\w'.-]*)*\s+(St|Street|Rd|Road|Ave|Avenue|Way|Dr|Drive|Ln|Lane|Blvd|Hwy|Highway|Ext|Circle|Ct|Court|Terrace)\b/i;
+
+function looksLikeLocation(s){
+  if(!s) return false;
+  const t=s.trim();
+  if(t.length<4 || t.length>120) return false;
+  if(VEHICLE_RE.test(t) && !STREET_RE.test(t) && !PLACE_RE.test(t)) return false;
+  return STREET_RE.test(t) || PLACE_RE.test(t);
+}
+function firstSentence(s){
+  const m=/^(.*?[^.])\.(\s+[A-Z"']|\s*$)/.exec(s.trim());
+  return (m ? m[1] : s).trim().replace(/[.,;:\s]+$/,"");
+}
+function editDist(a,b){
+  const m=a.length, n=b.length;
+  if(Math.abs(m-n)>3) return 9;
+  const d=[]; for(let i=0;i<=m;i++) d[i]=[i];
+  for(let j=0;j<=n;j++) d[0][j]=j;
+  for(let i=1;i<=m;i++) for(let j=1;j<=n;j++)
+    d[i][j]=Math.min(d[i-1][j]+1, d[i][j-1]+1, d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+  return d[m][n];
+}
+function fuzzyHit(token, surname){
+  if(token===surname) return true;
+  const len=surname.length;
+  const tol = len<=4 ? 0 : (len<=7 ? 1 : 2);
+  if(Math.abs(token.length-len)>tol) return false;
+  return editDist(token, surname)<=tol;
+}
+
+function parseOpPlan(raw, roster){
+  const text=String(raw||"").replace(/\r/g,"").replace(/\u2013|\u2014/g,"–");
+  const rawLines=text.split("\n").map(l=>l.replace(/^[\s•·▪*\-]+/,"").trim()).filter(l=>l.length>1);
+  const fields={}, medics=[], seen={};
+
+  /* ---- date ---- */
+  let m=/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),?\s+(\d{4})\b/i.exec(text);
+  if(m) fields.date=m[3]+"-"+String(MONTHS[m[1].toLowerCase()]).padStart(2,"0")+"-"+String(+m[2]).padStart(2,"0");
+  else if((m=/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/.exec(text)))
+    fields.date=m[3]+"-"+String(+m[1]).padStart(2,"0")+"-"+String(+m[2]).padStart(2,"0");
+
+  /* ---- operation name / location ---- */
+  for(let i=0;i<Math.min(rawLines.length,8);i++){
+    const l=rawLines[i];
+    if(/\/\s*(January|February|March|April|May|June|July|August|September|October|November|December|\d{1,2}\/)/i.test(l)){
+      fields.oploc=l.split("/")[0].trim(); break;
+    }
+  }
+  if(!fields.oploc){
+    const t=rawLines.find(l=>/parade|operation|detail|warrant|event/i.test(l) && l.length<80);
+    if(t) fields.oploc=t.replace(/\s*\/.*$/,"").trim();
+  }
+  const route=/route will be on ([^,.]+)/i.exec(text);
+  const town=/\b(Provincetown|Hyannis|Barnstable|Falmouth|Yarmouth|Dennis|Chatham|Orleans|Bourne|Sandwich|Mashpee|Truro|Wellfleet|Eastham|Brewster|Harwich)\b/i.exec(text);
+  if(fields.oploc && route) fields.oploc += " — " + route[1].trim() + (town?", "+town[1]:"");
+
+  /* ---- op type ---- */
+  const types=[];
+  if(/\bsecurity\b|\bparade\b|\bdetail\b|\bdignitary\b|\bescort\b/i.test(text)) types.push("Security Detail");
+  if(/search warrant|\bwarrant\b/i.test(text)) types.push("Warrant");
+  if(/\bbarricad/i.test(text)) types.push("Barricade");
+  if(/\bhostage\b/i.test(text)) types.push("Hostage");
+  if(/high[- ]risk arrest/i.test(text)) types.push("High-Risk Arrest");
+  if(types.length) fields.optype=types;
+
+  /* ---- brief time ---- */
+  let bt=null;
+  const sentences=text.split(/(?:\.\s+|\n)/);
+  for(const sen of sentences){
+    if(/brief|meeting|muster|roll call/i.test(sen)){
+      const t=/\b(?:at\s+)(\d{1,2}):?(\d{2})\s*(?:hrs?|hours)?\b/i.exec(sen);
+      if(t){ bt=String(+t[1]).padStart(2,"0")+":"+t[2]; break; }
+    }
+  }
+  if(bt) fields.brief=bt;
+
+  /* ---- staging (prefer tactical command staging) ---- */
+  for(const l of rawLines){
+    if(/tactical command staging/i.test(l)){
+      const after=l.split(/[:–]/).slice(1).join(":").trim();
+      if(after) { fields.staging=firstSentence(after); break; }
+    }
+  }
+  if(!fields.staging){
+    for(const l of rawLines){
+      if(/staging area|pre-?event staging/i.test(l)){
+        const after=l.split(/[:–]/).slice(1).join(":").trim();
+        if(after){ fields.staging=firstSentence(after.split(/\s[-–]\s/)[0]); break; }
+      }
+    }
+  }
+
+  /* ---- comms ---- */
+  for(const l of rawLines){
+    if(/^comms?\b|radio frequency/i.test(l)){
+      const f=/(?:frequency|freq|channel)\s*[-:–]?\s*([A-Za-z0-9 .\/]{2,24})/i.exec(l);
+      if(f) fields.comm1=firstSentence(f[1]).trim();
+      const sec=/(?:also monitor|secondary|backup|monitor the)\s+(?:the\s+)?([^.]{4,60})/i.exec(l);
+      if(sec) fields.comm2=sec[1].trim().replace(/\s+/g," ");
+      break;
+    }
+  }
+
+  /* ---- personnel: track unit/location context, fuzzy-match roster surnames ---- */
+  const surnames=roster.map(function(n){
+    const bare=n.replace(/\([^)]*\)/g,"").trim();
+    const s=bare.indexOf(",")>=0 ? bare.split(",")[0] : bare.split(/\s+/).pop();
+    return {full:n, sur:s.trim().toLowerCase()};
+  });
+  let ctx="";
+  rawLines.forEach(function(line){
+    const um=UNIT_RE.exec(line);
+    if(um){
+      let unit=um[1].trim(), loc="";
+      const rest=line.slice(um[0].length);
+      const slash=/^\s*\/\s*([^–:]+)/.exec(rest);
+      if(slash && !VEHICLE_RE.test(slash[1])) unit += " / " + slash[1].trim().replace(/\s*\(.*$/,"");
+      const explicit=/Location\s*:\s*([^–]+)/i.exec(line);
+      if(explicit && looksLikeLocation(explicit[1])) loc=firstSentence(explicit[1]);
+      else {
+        const segs=line.replace(/([A-Za-z)])-\s+/g,"$1 – ").split(/\s*[–:]\s*/).slice(1);
+        for(const sg of segs){ const c=firstSentence(sg); if(looksLikeLocation(c)){ loc=c; break; } }
+      }
+      if(loc) ctx = unit + " — " + loc;
+    }
+    const tokens=line.toLowerCase().replace(/[()&,.;:]/g," ").split(/\s+/).filter(Boolean);
+    surnames.forEach(function(p){
+      if(seen[p.full]) return;
+      if(tokens.some(t=>fuzzyHit(t,p.sur))){
+        seen[p.full]=true;
+        medics.push({name:p.full, assignment:ctx||"", line:line});
+      }
+    });
+  });
+
+  const missing=surnames.filter(p=>!seen[p.full]).map(p=>p.full);
+  return {fields:fields, medics:medics, missing:missing};
+}
+
+
+
+/* ---- PDF text extraction (lazy, graceful) ---- */
+function loadScript(src){
+  return new Promise(function(res,rej){
+    const el=document.createElement("script"); el.src=src;
+    el.onload=res; el.onerror=function(){ rej(new Error("load failed")); };
+    document.head.appendChild(el);
+  });
+}
+async function pdfToText(file){
+  if(!window.pdfjsLib){
+    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");
+    if(window.pdfjsLib) window.pdfjsLib.GlobalWorkerOptions.workerSrc=
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  }
+  if(!window.pdfjsLib) throw new Error("PDF reader unavailable");
+  const buf=await file.arrayBuffer();
+  const pdf=await window.pdfjsLib.getDocument({data:buf}).promise;
+  let out="";
+  for(let pg=1; pg<=pdf.numPages; pg++){
+    const page=await pdf.getPage(pg);
+    const tc=await page.getTextContent();
+    const rows={};
+    tc.items.forEach(function(it){
+      const y=Math.round(it.transform[5]);
+      let key=null;
+      for(const k in rows){ if(Math.abs(+k-y)<=3){ key=k; break; } }
+      if(key===null){ key=String(y); rows[key]=[]; }
+      rows[key].push({x:it.transform[4], t:it.str});
+    });
+    Object.keys(rows).sort((a,b)=>+b-+a).forEach(function(k){
+      out += rows[k].sort((a,b)=>a.x-b.x).map(o=>o.t).join(" ").replace(/\s+/g," ").trim() + "\n";
+    });
+    out += "\n";
+  }
+  return out;
+}
+
+/* ---- review + apply ---- */
+let planResult=null;
+const FIELD_LABELS={date:"Date", oploc:"Operation location", brief:"Brief time",
+  staging:"TEMS staging", comm1:"Comms — primary", comm2:"Comms — backup", optype:"Op type"};
+
+$("#planFile").addEventListener("change", async function(e){
+  const f=e.target.files && e.target.files[0]; if(!f) return;
+  toast("Reading PDF…");
+  try{
+    const txt=await pdfToText(f);
+    $("#planText").value=txt;
+    if(txt.replace(/\s/g,"").length<40) toast("Little text found — plan may be a scan; paste the text instead");
+    else doParsePlan();
+  }catch(err){ toast("Couldn't read that PDF — paste the text instead"); }
+  e.target.value="";
+});
+$("#btnParsePlan").addEventListener("click", doParsePlan);
+
+function doParsePlan(){
+  const txt=$("#planText").value;
+  if(txt.trim().length<30){ toast("Paste the plan text first"); return; }
+  planResult=parseOpPlan(txt, getRoster());
+  const order=getRoster();
+  planResult.medics.sort((a,b)=>order.indexOf(a.name)-order.indexOf(b.name));
+  renderReview();
+}
+function revRow(key, label, value, kind){
+  const row=document.createElement("div"); row.className="revitem";
+  row.innerHTML='<input type="checkbox" checked>'+
+    '<div><div class="rk">'+escHtml(label)+'</div>'+
+    '<input type="text" value="'+escHtml(value)+'"></div>';
+  row.dataset.key=key; row.dataset.kind=kind;
+  return row;
+}
+function renderReview(){
+  const host=$("#reviewList"); host.innerHTML="";
+  const r=planResult;
+  Object.keys(FIELD_LABELS).forEach(function(k){
+    if(!(k in r.fields)) return;
+    const val = k==="optype" ? r.fields[k].join(", ") : r.fields[k];
+    host.appendChild(revRow(k, FIELD_LABELS[k], val, "field"));
+  });
+  r.medics.forEach(function(m,i){
+    const row=revRow("med"+i, m.name, m.assignment, "medic");
+    row.dataset.name=m.name;
+    host.appendChild(row);
+  });
+  const mn=$("#missingNote");
+  if(r.missing.length){
+    mn.innerHTML='<div class="revwarn" style="margin-top:8px">Not found in this plan: '+
+      escHtml(r.missing.join(" · "))+'. Add them by hand if they are assigned.</div>';
+  } else mn.innerHTML="";
+  $("#reviewWrap").style.display="";
+  toast(r.medics.length+" medics matched, "+r.missing.length+" not found");
+}
+$("#btnApplyPlan").addEventListener("click", function(){
+  const rows=Array.from($("#reviewList").children);
+  const medics=[];
+  rows.forEach(function(row){
+    const on=row.querySelector('input[type=checkbox]').checked;
+    if(!on) return;
+    const val=row.querySelector('input[type=text]').value.trim();
+    const k=row.dataset.key;
+    if(row.dataset.kind==="field"){
+      if(k==="optype"){
+        val.split(",").map(t=>t.trim()).filter(Boolean).forEach(t=>S.multi.optype.add(t));
+        $$('.chips[data-m="optype"] button').forEach(b=>b.classList.toggle("on", S.multi.optype.has(b.getAttribute("data-val"))));
+        $("#othWrap").style.display=S.multi.optype.has("Other")?"":"none";
+      } else setField(k, val);
+    } else medics.push({name:row.dataset.name, assignment:val});
+  });
+  if(medics.length){
+    for(let i=1;i<=10;i++){ setField("med"+i+"n",""); setField("med"+i+"a",""); }
+    medics.slice(0,10).forEach(function(m,i){
+      setField("med"+(i+1)+"n", m.name);
+      setField("med"+(i+1)+"a", m.assignment);
+    });
+    renderRosterChips();
+  }
+  $("#reviewWrap").style.display="none";
+  $("#importPanel").open=false;
+  touch();
+  toast("Applied — review page 1 before you brief");
 });
 
 /* boot */
