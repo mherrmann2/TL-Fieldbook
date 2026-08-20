@@ -1818,8 +1818,14 @@ function parseOpPlan(raw, roster){
       const rest=line.slice(um[0].length);
       const slash=/^\s*\/\s*([^–:]+)/.exec(rest);
       if(slash && !VEHICLE_RE.test(slash[1])) unit += " / " + slash[1].trim().replace(/\s*\(.*$/,"");
+      /* a unit's station beats its departure point: "deploy from X ... provide security in Y" */
+      const onStation=/(?:provide security (?:in|at)|on station (?:in|at)|operating (?:in|at)|assigned to|posted? (?:in|at)|stationed (?:in|at))\s+((?:the\s+)?[A-Za-z0-9][\w' ]{3,40}?)(?=[.,;]|\s+(?:as|and|with|for|to|while|then)\b|$)/i.exec(line);
       const explicit=/Location\s*:\s*([^–]+)/i.exec(line);
-      if(explicit && looksLikeLocation(explicit[1])) loc=firstSentence(explicit[1]);
+      if(onStation && looksLikeLocation(onStation[1])){
+        loc=onStation[1].trim().replace(/^the\s+/i,"")
+             .replace(/\b[a-z]/g, c=>c.toUpperCase());
+      }
+      else if(explicit && looksLikeLocation(explicit[1])) loc=firstSentence(explicit[1]);
       else {
         const segs=line.replace(/([A-Za-z)])-\s+/g,"$1 – ").split(/\s*[–:]\s*/).slice(1);
         for(const sg of segs){ const c=firstSentence(sg); if(looksLikeLocation(c)){ loc=c; break; } }
