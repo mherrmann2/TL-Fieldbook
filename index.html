@@ -1635,8 +1635,29 @@ function fuzzyHit(token, surname){
   return editDist(token, surname)<=tol;
 }
 
+
+/* screenshots and PDFs hard-wrap mid-sentence; rejoin continuation lines before parsing */
+function reflowPlan(raw){
+  const lines=String(raw||"").replace(/\r/g,"").split("\n");
+  const BUL=/^[\s]*[\u00a2\u2022\u00b7\u25aa*\u25cb\u25cf\u25e6>]+\s*/;
+  const out=[];
+  for(let i=0;i<lines.length;i++){
+    const rawLine=lines[i];
+    const l=rawLine.replace(BUL,"").trim();
+    if(!l){ out.push(""); continue; }
+    const prev=out.length?out[out.length-1]:"";
+    const isBullet=BUL.test(rawLine);
+    const isHeader=UNIT_RE.test(l) || /^[A-Z][A-Za-z \/'-]{2,40}:/.test(l);
+    if(prev && !/[.!?]$/.test(prev) && !isBullet && !isHeader) out[out.length-1]=prev+" "+l;
+    else out.push(l);
+  }
+  return out.join("\n");
+}
+
 function parseOpPlan(raw, roster){
-  const text=String(raw||"").replace(/\r/g,"").replace(/\u2013|\u2014/g,"–");
+  const text=reflowPlan(raw)
+    .replace(/[\u2013\u2014]/g,"–")
+    .replace(/\s*[-–]{1,3}\s+/g," – ");
   const rawLines=text.split("\n").map(l=>l.replace(/^[\s•·▪*\-]+/,"").trim()).filter(l=>l.length>1);
   const fields={}, medics=[], seen={};
 
@@ -1647,14 +1668,23 @@ function parseOpPlan(raw, roster){
     fields.date=m[3]+"-"+String(+m[1]).padStart(2,"0")+"-"+String(+m[2]).padStart(2,"0");
 
   /* ---- operation name / location ---- */
-  for(let i=0;i<Math.min(rawLines.length,8);i++){
+  const inc=/Incident Name\s+(.{4,60}?)\s*(?:Operational|Date\b|$)/im.exec(text);
+  if(inc && !/[|]/.test(inc[1])){
+    let nm=inc[1].trim();
+    const yr=/^(.*?\b(?:19|20)\d{2})\b/.exec(nm);
+    if(yr) nm=yr[1];
+    nm=nm.replace(/\s+\S*[!|~^\\]+\S*$/,"").trim();
+    if(nm.length>=4) fields.oploc=nm;
+  }
+  if(!fields.oploc) for(let i=0;i<Math.min(rawLines.length,8);i++){
     const l=rawLines[i];
     if(/\/\s*(January|February|March|April|May|June|July|August|September|October|November|December|\d{1,2}\/)/i.test(l)){
       fields.oploc=l.split("/")[0].trim(); break;
     }
   }
   if(!fields.oploc){
-    const t=rawLines.find(l=>/parade|operation|detail|warrant|event/i.test(l) && l.length<80);
+    const t=rawLines.find(l=>/parade|operation|detail|warrant|event/i.test(l) && l.length<80
+      && !/[|]|version|page \d|for official/i.test(l));
     if(t) fields.oploc=t.replace(/\s*\/.*$/,"").trim();
   }
   const route=/route will be on ([^,.]+)/i.exec(text);
@@ -1708,6 +1738,71 @@ function parseOpPlan(raw, roster){
     }
   }
 
+  /* ---- casualty collection / ambulance exchange points ---- */
+  let cm;
+  const ccpRe=/Casualty Collection Point\s*(\d)?\s*(?:is|:|-)\s*([^.;]{4,70})/ig;
+  while((cm=ccpRe.exec(text))){
+    const val=cm[2].trim().replace(/\s+/g," ").replace(/[,;]$/,"");
+    const slot = cm[1]==="2" ? "ccp2" : "ccp1";
+    if(!fields[slot]) fields[slot]=val;
+  }
+  const aepM=/Ambulance Exchange Point\s*(\d)?\s*(?:is|:|-)\s*([^.;]{4,70})/i.exec(text);
+  if(aepM) fields.aep1=aepM[2].trim().replace(/\s+/g," ");
+
+  /* ---- ICS 204 communications table ---- */
+  const STOP=/^(all|ems|group|transport|staging|personnel|and|if|activated|leaders|supervisors|sections|who|monitors)$/i;
+  const chans={};
+  rawLines.forEach(function(l){
+    const cmm=/^(.{3,40}?)\s+((?:700|800)\s*MHZ|VHF|UHF)\s+(.+)$/i.exec(l);
+    if(!cmm) return;
+    const words=cmm[3].trim().split(/\s+/), parts=[];
+    for(let i=0;i<words.length;i++){
+      if(parts.length>=2) break;
+      const w=words[i];
+      if(STOP.test(w) || !/^[A-Z0-9][\w'-]*$/.test(w)) break;
+      parts.push(w);
+    }
+    if(parts.length) chans[cmm[1].trim().toLowerCase()]=parts.join(" ");
+  });
+  function chanFor(re){ for(const k in chans){ if(re.test(k)) return chans[k]; } return ""; }
+  const ucCh=chanFor(/unified command/i), opsCh=chanFor(/ems operations|fire and ems op/i);
+  const dispCh=chanFor(/dispatch/i), mciCh=chanFor(/mass casualty|cmed/i);
+  if(!fields.comm1 && ucCh) fields.comm1=ucCh+" (Unified Command)";
+  if(ucCh || mciCh){
+    const bits=[];
+    if(fields.comm2) bits.push(fields.comm2);
+    if(ucCh && (fields.comm1||"").indexOf(ucCh)<0 && !bits.join(" ").includes(ucCh)) bits.push(ucCh+" (UC)");
+    if(mciCh && !bits.join(" ").includes(mciCh)) bits.push("MCI: "+mciCh);
+    if(bits.length) fields.comm2=bits.join(" · ");
+  }
+  if(opsCh) fields.commfd=opsCh+" (Fire/EMS Ops)";
+  else if(dispCh) fields.commfd=dispCh;
+
+  /* ---- local FD + medical coordination contact ---- */
+  const fdM=/\b([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)\s+Fire\s+(?:Headquarters|Department|Rescue|Dept)/.exec(text);
+  if(fdM) fields.fddept=fdM[1]+" Fire";
+  else if(dispCh && /fire/i.test(dispCh)) fields.fddept=dispCh;
+  const supM=/Group or Unit Supervisor\s+((?:Capt|Lt|Chief|Sgt|Det|Deputy)\.?\s+[A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)?)/.exec(text);
+  if(supM) fields.fdpoc=supM[1].trim()+" (EMS Group Supervisor)";
+
+  /* ---- hazards worth carrying onto the sheet ---- */
+  const hz=[];
+  if(/heat[- ]related injury/i.test(text)) hz.push("Heat-related injury and illness expected");
+  const crowd=/About\s+([\d,]{3,12})\s+people/i.exec(text);
+  if(crowd) hz.push(crowd[1].replace(/,$/,"")+" expected attendance");
+  if(hz.length) fields.hazards=hz.join("; ");
+
+  /* ---- specialty resources ---- */
+  const sp=[];
+  const als=/\b(Nine|Eight|Seven|Six|Five|Four|Three|Two|\d+)\s+advanced life support ambulances/i.exec(text);
+  if(als) sp.push(als[1]+" ALS ambulances");
+  const gset={}; let gm; const gre=/emergency medical gator\s*(\d+)?/ig;
+  while((gm=gre.exec(text))) gset[gm[1]||"1"]=1;
+  const gn=Object.keys(gset).length;
+  if(gn) sp.push(gn+" state EMS gator"+(gn>1?"s":""));
+  if(/\bUTV\b/.test(text)) sp.push("UTV");
+  if(sp.length) fields.specialty=sp.join(", ");
+
   /* ---- personnel: track unit/location context, fuzzy-match roster surnames ---- */
   const surnames=roster.map(function(n){
     const bare=n.replace(/\([^)]*\)/g,"").trim();
@@ -1743,8 +1838,6 @@ function parseOpPlan(raw, roster){
   const missing=surnames.filter(p=>!seen[p.full]).map(p=>p.full);
   return {fields:fields, medics:medics, missing:missing};
 }
-
-
 
 /* ---- PDF text extraction (lazy, graceful) ---- */
 function loadScript(src){
@@ -1785,8 +1878,11 @@ async function pdfToText(file){
 
 /* ---- review + apply ---- */
 let planResult=null;
-const FIELD_LABELS={date:"Date", oploc:"Operation location", brief:"Brief time",
-  staging:"TEMS staging", comm1:"Comms — primary", comm2:"Comms — backup", optype:"Op type"};
+const FIELD_LABELS={date:"Date", oploc:"Operation location", optype:"Op type", brief:"Brief time",
+  staging:"TEMS staging", ccp1:"CCP — primary", ccp2:"CCP — alternate", aep1:"AEP — primary",
+  hazards:"Scene hazards", specialty:"Specialty resources",
+  comm1:"Comms — primary", comm2:"Comms — backup", commfd:"Comms — local FD channel",
+  fddept:"Local fire department", fdpoc:"FD / medical point of contact"};
 
 $("#planFile").addEventListener("change", async function(e){
   const f=e.target.files && e.target.files[0]; if(!f) return;
@@ -1855,12 +1951,16 @@ $("#btnApplyPlan").addEventListener("click", function(){
     } else medics.push({name:row.dataset.name, assignment:val});
   });
   if(medics.length){
-    for(let i=1;i<=10;i++){ setField("med"+i+"n",""); setField("med"+i+"a",""); }
-    medics.slice(0,10).forEach(function(m,i){
-      setField("med"+(i+1)+"n", m.name);
-      setField("med"+(i+1)+"a", m.assignment);
+    let added=0, updated=0;
+    medics.forEach(function(m){
+      let slot=-1;
+      for(let i=1;i<=10;i++) if((S.v["med"+i+"n"]||"").trim()===m.name){ slot=i; break; }
+      if(slot>0) updated++;
+      else { for(let i=1;i<=10;i++) if(!(S.v["med"+i+"n"]||"").trim()){ slot=i; added++; break; } }
+      if(slot>0){ setField("med"+slot+"n", m.name); setField("med"+slot+"a", m.assignment); }
     });
     renderRosterChips();
+    if(added+updated<medics.length) toast("All 10 slots full — some medics not placed");
   }
   $("#reviewWrap").style.display="none";
   $("#importPanel").open=false;
