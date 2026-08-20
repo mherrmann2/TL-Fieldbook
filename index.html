@@ -83,6 +83,9 @@ input::placeholder,textarea::placeholder{color:#5C6670}
 .mkchips button.on[data-val=STG]{background:var(--amber); border-color:var(--amber)}
 .mkchips button.on[data-val=LZ]{background:var(--vio); border-color:var(--vio)}
 .mkchips button.on[data-val=ROUTE]{background:#22E0F0; border-color:#22E0F0}
+.mkchips button.on[data-val=CP]{background:#FF5FA8; border-color:#FF5FA8}
+.mkchips button.on[data-val=GAS]{background:#FFE94A; border-color:#FFE94A; color:#000}
+.mkchips button.on[data-val=HYD]{background:#fff; border-color:#fff; color:#000}
 .mklist{display:grid; gap:8px}
 .revitem{display:grid; grid-template-columns:26px 1fr; gap:9px; align-items:start;
   background:var(--field); border:1px solid var(--line); border-radius:9px; padding:9px}
@@ -97,10 +100,12 @@ button.on{background:var(--amber); border-color:var(--amber); color:#000; font-w
 .mkbadge{font-weight:800; font-size:12px; text-align:center; color:#fff; border-radius:6px; padding:8px 0; border:1px solid #000}
 .b-TGT{background:var(--red)} .b-CCP{background:var(--grn)} .b-AEP{background:var(--blu)}
 .b-STG{background:var(--amber); color:#000} .b-LZ{background:var(--vio)}
+.b-CP{background:#FF5FA8} .b-GAS{background:#FFE94A; color:#000} .b-HYD{background:#fff; color:#000}
 .mk{font-weight:800; font-size:10px; color:#fff; border-radius:4px; border:1.5px solid #000;
   text-align:center; line-height:15px; box-shadow:0 1px 3px rgba(0,0,0,.6)}
 .mk-TGT{background:var(--red)} .mk-CCP{background:var(--grn)} .mk-AEP{background:var(--blu)}
 .mk-STG{background:var(--amber); color:#000} .mk-LZ{background:var(--vio)}
+.mk-CP{background:#FF5FA8} .mk-GAS{background:#FFE94A; color:#000} .mk-HYD{background:#fff; color:#000}
 .hint{font-size:12px; color:var(--dim)}
 #toast{position:fixed; left:50%; bottom:18px; transform:translateX(-50%); background:#000; color:#fff;
   border:1px solid var(--line); border-radius:999px; padding:10px 18px; font-size:13.5px; z-index:1200;
@@ -334,7 +339,7 @@ footer{max-width:760px; margin:0 auto; padding:0 14px 30px; font-size:11px; colo
   </div>
 </div></section>
 
-<section class="sec"><div class="bar">Scene Map <small>· plot TGT · CCP · AEP · STG · LZ</small></div><div class="bd">
+<section class="sec"><div class="bar">Scene Map <small>· tap a tool, then tap the map</small></div><div class="bd">
   <div class="seg" data-k="mapmode" id="mapModeSeg">
     <button data-val="live" class="on">Live satellite</button>
     <button data-val="shot">Screenshot</button>
@@ -356,11 +361,12 @@ footer{max-width:760px; margin:0 auto; padding:0 14px 30px; font-size:11px; colo
     <canvas id="shotCanvas" height="10"></canvas>
     <div class="hint" id="shotHint" style="margin-top:6px">Screenshot your maps app, load it here, then tap to plot. Works with zero signal.</div>
   </div>
-  <div class="fld" style="margin-top:2px"><label>Marker tool — select, then tap map</label>
+  <div class="fld" style="margin-top:2px"><label>Marker tool — TGT target · CP command post · CCP · AEP · STG staging · LZ · GAS shutoff · HYD hydrant</label>
     <div class="chips mkchips" data-m="tool" id="toolChips">
-      <button data-val="TGT">TGT</button><button data-val="CCP">CCP</button>
-      <button data-val="AEP">AEP</button><button data-val="STG">STG</button>
-      <button data-val="LZ">LZ</button>
+      <button data-val="TGT">TGT</button><button data-val="CP">CP</button>
+      <button data-val="CCP">CCP</button><button data-val="AEP">AEP</button>
+      <button data-val="STG">STG</button><button data-val="LZ">LZ</button>
+      <button data-val="GAS">GAS</button><button data-val="HYD">HYD</button>
       <button data-val="ROUTE">ROUTE</button>
     </div>
   </div>
@@ -442,7 +448,9 @@ const S = { v:{}, multi:{ optype:new Set(), occ:new Set(), hazchips:new Set() },
 const ROUTE_C="#22E0F0";
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
-const MK = { TGT:"#FF4747", CCP:"#35C46A", AEP:"#3AA0FF", STG:"#FFB020", LZ:"#C77DFF" };
+const MK = { TGT:"#FF4747", CP:"#FF5FA8", CCP:"#35C46A", AEP:"#3AA0FF",
+             STG:"#FFB020", LZ:"#C77DFF", GAS:"#FFE94A", HYD:"#FFFFFF" };
+const DARK_TEXT = { STG:1, GAS:1, HYD:1 };
 
 function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show");
   clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),2600); }
@@ -608,7 +616,8 @@ function strokeRoute(g, pts, scale){
 }
 
 /* field auto-backfill from markers */
-const FIELD_BIND={ TGT:["oploc"], CCP:["ccp1","ccp2"], AEP:["aep1","aep2"], STG:["staging"], LZ:["lzloc"] };
+const FIELD_BIND={ TGT:["oploc"], CCP:["ccp1","ccp2"], AEP:["aep1","aep2"],
+                   STG:["staging"], LZ:["lzloc"], GAS:["ut_g_loc"] };
 function mkValue(m){
   if(m.label && m.label.trim()) return m.label.trim();
   if(m.mode==="live"){
@@ -756,7 +765,7 @@ function drawBadge(ctx, x, y, type, label, h, bounds){
   ctx.save();
   ctx.fillStyle=MK[type]; ctx.strokeStyle="#000"; ctx.lineWidth=Math.max(1.5,h*0.1);
   rr(ctx, x-w/2, y-h/2, w, h, h*0.22); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = (type==="STG") ? "#000" : "#fff";
+  ctx.fillStyle = DARK_TEXT[type] ? "#000" : "#fff";
   ctx.font="700 "+(h*0.62)+"px -apple-system,Helvetica,Arial,sans-serif";
   ctx.textAlign="center"; ctx.textBaseline="middle";
   ctx.fillText(type, x, y+h*0.03);
@@ -1132,13 +1141,27 @@ function buildPdf(mapCap){
 
   /* scene map / sketch */
   const skH=252;
-  s=H.sec(y,"SCENE MAP  —  TGT, CCP, AEP, STG, LZ",0,LH,skH);
+  s=H.sec(y,"SCENE MAP",0,LH,skH);
   const top=y+BAR;
   let lx=PM+8;
-  [["tri","TGT"],["circle","CCP"],["square","AEP"],["diamond","STG"],["cross","LZ"]].forEach(function(p){
-    H.sym(p[0], lx, top+9);
-    lx=H.lab(lx+8, top+12, p[1], 8, true)+16;
+  [["TGT",[255,71,71],1],["CP",[255,95,168],1],["CCP",[53,196,106],1],["AEP",[58,160,255],1],
+   ["STG",[255,176,32],0],["LZ",[199,125,255],1],["GAS",[255,233,74],0],["HYD",[255,255,255],0]
+  ].forEach(function(p){
+    doc.setFillColor(p[1][0],p[1][1],p[1][2]);
+    doc.setDrawColor(0); doc.setLineWidth(0.7);
+    doc.roundedRect(lx, top+3, 25, 10, 2, 2, "FD");
+    doc.setFont("helvetica","bold"); doc.setFontSize(6.5);
+    doc.setTextColor(p[2]?255:0);
+    doc.text(p[0], lx+12.5, top+10, {align:"center"});
+    doc.setTextColor(0);
+    lx += 31;
   });
+  if(typeof routeLabel==="function" && routeLabel()){
+    doc.setDrawColor(0); doc.setLineWidth(3.2); doc.line(lx, top+8, lx+18, top+8);
+    doc.setDrawColor(34,224,240); doc.setLineWidth(1.8); doc.line(lx, top+8, lx+18, top+8);
+    doc.setDrawColor(0);
+    H.lab(lx+21, top+10.5, "ROUTE", 8, true);
+  }
   const nx=PM+PW-26;
   doc.setLineWidth(1.4); doc.line(nx, top+4, nx, top+16);
   doc.triangle(nx, top+1, nx-3.5, top+8, nx+3.5, top+8, "F");
