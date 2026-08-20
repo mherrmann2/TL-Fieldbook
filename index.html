@@ -1836,8 +1836,32 @@ function parseOpPlan(raw, roster){
     });
   });
 
+  /* ---- propose map pins from any location we extracted ---- */
+  const townSfx = town ? ", "+town[1]+", MA" : "";
+  const TOWN_RE=/\b(Provincetown|Hyannis|Barnstable|Falmouth|Yarmouth|Dennis|Chatham|Orleans|Bourne|Sandwich|Mashpee|Truro|Wellfleet|Eastham|Brewster|Harwich|Nantucket|Edgartown)\b/i;
+  const hasState=v=>/,\s*(MA|Mass|Massachusetts|RI)\b/i.test(v);
+  const markers=[], seenLoc={};
+  function addPin(type, label, loc){
+    if(!loc) return;
+    const clean=String(loc).replace(/\s*\([^)]*\)\s*$/,"").trim().replace(/[.,;]$/,"");
+    if(!looksLikeLocation(clean)) return;
+    const key=clean.toLowerCase().replace(/[^a-z0-9]/g,"");
+    if(seenLoc[key] || markers.length>=8) return;
+    seenLoc[key]=1;
+    let addr=clean;
+    if(!hasState(clean)) addr = TOWN_RE.test(clean) ? clean+", MA" : clean+townSfx;
+    markers.push({type:type, label:(label||clean).trim(), address:addr});
+  }
+  [["ccp1","CCP"],["ccp2","CCP"],["aep1","AEP"],["aep2","AEP"],["staging","STG"],["lzloc","LZ"]]
+    .forEach(function(pr){ addPin(pr[1], fields[pr[0]], fields[pr[0]]); });
+  medics.forEach(function(m){
+    const parts=String(m.assignment||"").split(" — ");
+    if(parts.length<2) return;
+    addPin("STG", parts[0], parts.slice(1).join(" — "));
+  });
+
   const missing=surnames.filter(p=>!seen[p.full]).map(p=>p.full);
-  return {fields:fields, medics:medics, missing:missing};
+  return {fields:fields, medics:medics, missing:missing, markers:markers};
 }
 
 /* ---- place pins from an imported plan (forward geocode, rate-limited) ---- */
