@@ -102,6 +102,30 @@ input::placeholder,textarea::placeholder{color:#5C6670}
 .revitem input[type=checkbox]{width:22px; height:22px; accent-color:var(--amber); margin-top:3px}
 .revitem .rk{font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:var(--dim); margin:0 0 4px 1px}
 .revwarn{border:1px solid var(--amber); color:var(--amber); border-radius:9px; padding:9px 11px; font-size:12.5px}
+.viewtabs{display:flex; width:100%; margin:12px 0 2px}
+.viewtabs button{flex:1; min-width:0}
+.avrow{border-top:1px solid var(--line); padding:9px 0}
+.avrow:first-child{border-top:0; padding-top:2px}
+.avtop{display:flex; align-items:center; gap:7px}
+.avname{flex:1; min-width:0; font-size:14px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.avcell{width:46px; min-height:42px; border:1px solid var(--line); border-radius:9px; background:var(--field);
+  color:var(--dim); font-weight:800; font-size:15px; padding:0; flex:0 0 auto}
+.avcell.A{background:var(--grn); border-color:var(--grn); color:#04240f}
+.avcell.C{background:var(--amber); border-color:var(--amber); color:#000}
+.avcell.X{background:#5A2230; border-color:#8d3347; color:#FF9FB0}
+.avnote{width:100%; margin-top:6px; min-height:38px; padding:8px 10px; font-size:13px}
+.avhead{display:flex; align-items:center; gap:7px; padding-bottom:7px; border-bottom:1px solid var(--line); margin-bottom:4px}
+.avhead .sp{flex:1}
+.avhead .dh{width:46px; flex:0 0 auto; text-align:center; font-size:10px; letter-spacing:.06em; color:var(--dim); font-weight:800; text-transform:uppercase}
+.dayblk{border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:9px; background:var(--field)}
+.dayblk h4{margin:0 0 8px; font-size:13px; letter-spacing:.05em; text-transform:uppercase}
+.dayblk .cnt{font-weight:800}
+.cnt.short{color:var(--amber)} .cnt.ok{color:var(--grn)}
+.dayblk .chips button.on{background:var(--grn); border-color:var(--grn); color:#04240f}
+.dayblk .chips button.cnd{border-color:var(--amber); color:var(--amber)}
+.dayblk .chips button.cnd.on{background:var(--amber); border-color:var(--amber); color:#000}
+.evdate{display:grid; grid-template-columns:1fr 44px; gap:8px; align-items:center;
+  background:var(--field); border:1px solid var(--line); border-radius:9px; padding:8px 10px}
 .capitem{display:grid; grid-template-columns:78px 1fr 44px; gap:8px; align-items:center;
   background:var(--field); border:1px solid var(--line); border-radius:9px; padding:8px}
 .capitem img{width:78px; height:50px; object-fit:cover; border-radius:6px; border:1px solid var(--line); display:block}
@@ -149,6 +173,13 @@ footer{max-width:760px; margin:0 auto; font-size:11px; color:var(--dim); text-al
 <main>
 
 <div id="storeNote" class="storenote" hidden>Preview mode — autosave is blocked inside this viewer. Open the app from a hosted link or a Home-Screen install and saves persist on-device.</div>
+
+<div class="seg viewtabs" id="viewTabs">
+  <button data-view="sheet" class="on">Worksheet</button>
+  <button data-view="staff">Staffing</button>
+</div>
+
+<div id="viewSheet">
 
 <details class="opspanel" id="opsPanel">
   <summary>Ops — save · open · backup</summary>
@@ -445,6 +476,79 @@ footer{max-width:760px; margin:0 auto; font-size:11px; color:var(--dim); text-al
   </div>
 </div></section>
 
+</div><!-- /viewSheet -->
+
+<div id="viewStaff" hidden>
+
+<section class="sec"><div class="bar">Detail</div><div class="bd">
+  <div class="inline">
+    <div class="fld"><label>Title</label><input type="text" id="evTitle" placeholder="Oysterfest security detail"></div>
+    <div class="fld tight"><label>Need / day</label><input type="text" id="evNeed" inputmode="numeric" placeholder="2-3" style="width:74px"></div>
+  </div>
+  <div class="inline">
+    <div class="fld"><label>Location</label><input type="text" id="evLoc" placeholder="Wellfleet"></div>
+    <div class="fld tight"><label>Report time</label><input type="time" id="evTime" style="min-width:120px"></div>
+  </div>
+  <div class="fld"><label>Request <span class="hint">— what the team was asked for</span></label>
+    <div class="seg" id="evReqSeg">
+      <button data-val="Full team">Full team</button><button data-val="Partial Team">Partial Team</button>
+    </div>
+  </div>
+  <div class="fld"><label>Type <span class="hint">— as it reads on the attendance sheet</span></label>
+    <div class="chips" id="evTypeChips">
+      <button data-val="Security Detail">Security Detail</button>
+      <button data-val="Warrant">Warrant</button>
+      <button data-val="Barricade">Barricade</button>
+      <button data-val="Drill">Drill</button>
+    </div>
+    <input type="text" id="evType" placeholder="or type it" style="margin-top:7px">
+  </div>
+  <div class="fld"><label>Days</label>
+    <div class="mklist" id="evDateList"></div>
+    <div class="inline" style="margin-top:7px">
+      <input type="date" id="evNewDate" style="flex:1; min-width:150px">
+      <button id="btnAddDate">Add day</button>
+    </div>
+  </div>
+</div></section>
+
+<section class="sec"><div class="bar">Availability <small>· tap a cell to cycle</small></div><div class="bd">
+  <div id="availGrid"></div>
+  <div class="hint">Tap cycles: blank (no reply) → <b>A</b> available → <b>?</b> conditional → <b>X</b> out. Put the catch in the note — "if covered", "off shift, traffic".</div>
+  <div class="inline" style="margin-top:4px">
+    <label class="filelbl">Load replies (Claude file)<input type="file" id="staffJson" accept=".json,application/json" hidden></label>
+    <button id="btnClearAvail" class="btn-ghost">Clear replies</button>
+  </div>
+</div></section>
+
+<section class="sec"><div class="bar">Assign</div><div class="bd">
+  <div id="assignZone"></div>
+</div></section>
+
+<section class="sec"><div class="bar">Send &amp; record</div><div class="bd">
+  <div class="inline">
+    <button id="btnAskText">Copy the ask</button>
+    <button id="btnStatusText">Copy status</button>
+  </div>
+  <div class="inline">
+    <button id="btnSheetRow" class="btn-amber">Copy attendance row</button>
+    <button id="btnEvBackup">Backup file</button>
+  </div>
+  <div class="hint">Attendance row copies tab-separated — tap the first empty cell of the Callouts tab and paste; it fills Date / Location / Type / Request / Medics across.</div>
+  <textarea id="evOut" rows="4" style="margin-top:8px" placeholder="Copied text lands here too — select and copy if the button is blocked"></textarea>
+</div></section>
+
+<section class="sec"><div class="bar">Saved details</div><div class="bd">
+  <div class="inline">
+    <div class="fld"><label>Save as</label><input type="text" id="evSaveName" placeholder="Oysterfest 10/17-18"></div>
+    <div class="fld tight"><label>&nbsp;</label><button id="btnEvSave">Save</button></div>
+  </div>
+  <div class="mklist" id="evList"></div>
+  <div class="hint">Saved on this device. A detail you save keeps its availability and assignments.</div>
+</div></section>
+
+</div><!-- /viewStaff -->
+
 </main>
 <footer>Cape Cod RLEC SWAT · TEMS TL Tactical Worksheet · rev AUG 2026 · data stays on this device until you export · verify pre-printed reference data annually</footer>
 <div id="toast"></div>
@@ -511,13 +615,15 @@ document.addEventListener("click", function(e){
   }
   if(chips){
     const m=chips.getAttribute("data-m"), val=b.getAttribute("data-val");
+    if(!m) return;                          /* chip groups with their own handlers */
     if(m==="tool"){
       S.tool = (S.tool===val? null : val);
       $$("#toolChips button").forEach(x=>x.classList.toggle("on", x.getAttribute("data-val")===S.tool));
       updateRouteBar();
       return;
     }
-    const set=S.multi[m]; if(set.has(val)) set.delete(val); else set.add(val);
+    const set=S.multi[m]; if(!set) return;
+    if(set.has(val)) set.delete(val); else set.add(val);
     b.classList.toggle("on", set.has(val));
     if(m==="optype") $("#othWrap").style.display = set.has("Other") ? "" : "none";
     touch();
@@ -536,7 +642,7 @@ const ROAD_TILES=[
 let roadLayers=[];
 function setRoads(on){
   S.roads=!!on;
-  if(map){
+  if(map && typeof L!=="undefined"){
     if(!roadLayers.length)
       roadLayers=ROAD_TILES.map(u=>L.tileLayer(u,{maxZoom:19, crossOrigin:"anonymous", opacity:0.95}));
     roadLayers.forEach(function(l){ if(S.roads) l.addTo(map); else if(map.hasLayer(l)) map.removeLayer(l); });
@@ -561,6 +667,7 @@ function mkIcon(type){
     iconSize:[34,19], iconAnchor:[17,9]});
 }
 function addLiveMarker(type, lat, lng, label, addr, ed){
+  if(!map || typeof L==="undefined") return;
   const id=++S.mid;
   const lm=L.marker([lat,lng],{icon:mkIcon(type), draggable:true}).addTo(map);
   const rec={id:id, mode:"live", type:type, lat:lat, lng:lng,
@@ -599,8 +706,9 @@ function routeLabel(){
 function drawRoute(){
   routeLayers.forEach(function(l){ if(map && map.hasLayer(l)) map.removeLayer(l); });
   routeLayers=[];
+  if(!map || typeof L==="undefined"){ updateRouteBar(); return; }
   const pts=S.route.live.map(p=>[p.lat,p.lng]);
-  if(map && pts.length>1){
+  if(pts.length>1){
     routeLayers.push(L.polyline(pts,{color:"#000", weight:8, opacity:0.85, lineJoin:"round"}).addTo(map));
     routeLayers.push(L.polyline(pts,{color:ROUTE_C, weight:4, opacity:1, lineJoin:"round"}).addTo(map));
   }
@@ -1360,6 +1468,7 @@ function serialize(){
     autof:Object.assign({},S.autof),
     caps:S.captures.map(c=>({id:c.id,url:c.url,w:c.w,h:c.h,caption:c.caption})),
     roads:!!S.roads, labels:S.labels!==false,
+    ev:JSON.parse(JSON.stringify(S.ev||{})),
     route:{live:S.route.live.slice(), shot:S.route.shot.slice()},
     shot:null, view:null, ts:Date.now() };
   if(map){ const c=map.getCenter(); st.view={lat:c.lat,lng:c.lng,z:map.getZoom()}; }
@@ -1389,6 +1498,7 @@ function applyState(st){
   S.multi.optype=new Set(st.optype||[]); S.multi.occ=new Set(st.occ||[]);
   S.multi.hazchips=new Set(st.hazchips||[]);
   S.autof=st.autof||{};
+  if(st.ev && typeof loadEvent==="function"){ loadEvent(st.ev); }
   S.captures=(st.caps||[]).map(c=>({id:c.id||++S.mid, url:c.url, w:c.w, h:c.h, caption:c.caption||""}));
   renderCaps();
   S.route={live:(st.route&&st.route.live)||[], shot:(st.route&&st.route.shot)||[]};
@@ -2170,13 +2280,402 @@ $("#planImgs").addEventListener("change", async function(e){
   }finally{ btn.disabled=false; btn.textContent="Read plan"; }
 });
 
+
+/* ============ staffing / availability ============ */
+const EVKEY="tems_events_v1";
+const AVCYCLE=["","A","C","X"];
+S.ev={title:"",type:"",loc:"",time:"",need:"",req:"Full team",dates:[],av:{},note:{},asg:{}};
+
+function evFmt(iso){
+  if(!iso) return "";
+  const p=iso.split("-");
+  return p.length===3 ? (+p[1])+"/"+(+p[2])+"/"+p[0] : iso;
+}
+function evShort(iso){
+  const p=(iso||"").split("-");
+  return p.length===3 ? (+p[1])+"/"+(+p[2]) : iso;
+}
+function evDow(iso){
+  const p=(iso||"").split("-"); if(p.length!==3) return "";
+  const d=new Date(+p[0], +p[1]-1, +p[2]);
+  return ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()]||"";
+}
+function surnameOf(n){
+  const bare=String(n||"").replace(/\([^)]*\)/g,"").trim();
+  if(bare.indexOf(",")>=0) return bare.split(",")[0].trim();
+  const parts=bare.split(/\s+/);
+  return parts[parts.length-1]||bare;
+}
+function avOf(name,d){ return (S.ev.av[name]||{})[d]||""; }
+function setAv(name,d,v){
+  if(!S.ev.av[name]) S.ev.av[name]={};
+  if(v) S.ev.av[name][d]=v; else delete S.ev.av[name][d];
+  touch();
+}
+function needRange(){
+  const t=String(S.ev.need||"").match(/\d+/g);
+  if(!t||!t.length) return {min:0,max:0};
+  return {min:+t[0], max:+(t[t.length-1])};
+}
+
+/* ---- days ---- */
+function renderEvDates(){
+  const host=$("#evDateList"); if(!host) return;
+  host.innerHTML="";
+  if(!S.ev.dates.length){ host.innerHTML='<span class="hint">No days yet — add one below.</span>'; return; }
+  S.ev.dates.forEach(function(d,i){
+    const row=document.createElement("div"); row.className="evdate";
+    row.innerHTML='<div><b>'+escHtml(evDow(d))+' '+escHtml(evFmt(d))+'</b></div><button aria-label="Remove day">✕</button>';
+    row.querySelector("button").addEventListener("click", function(){
+      S.ev.dates.splice(i,1);
+      delete S.ev.asg[d];
+      Object.keys(S.ev.av).forEach(n=>{ if(S.ev.av[n]) delete S.ev.av[n][d]; });
+      renderStaff(); touch();
+    });
+    host.appendChild(row);
+  });
+}
+$("#btnAddDate").addEventListener("click", function(){
+  const v=$("#evNewDate").value;
+  if(!v){ toast("Pick a date first"); return; }
+  if(S.ev.dates.indexOf(v)>=0){ toast("That day is already listed"); return; }
+  if(S.ev.dates.length>=6){ toast("Six days max"); return; }
+  S.ev.dates.push(v); S.ev.dates.sort();
+  $("#evNewDate").value="";
+  renderStaff(); touch();
+});
+
+/* ---- availability grid ---- */
+let pendingAvRender=false;
+function renderAvail(){
+  const host=$("#availGrid"); if(!host) return;
+  if(document.activeElement && host.contains(document.activeElement)){ pendingAvRender=true; return; }
+  host.innerHTML="";
+  const roster=getRoster(), dates=S.ev.dates;
+  if(!roster.length){ host.innerHTML='<span class="hint">Roster is empty — add members in the Worksheet tab.</span>'; return; }
+  if(!dates.length){ host.innerHTML='<span class="hint">Add at least one day above to start marking availability.</span>'; return; }
+
+  const head=document.createElement("div"); head.className="avhead";
+  head.innerHTML='<div class="sp"></div>'+dates.map(d=>'<div class="dh">'+escHtml(evShort(d))+'</div>').join("");
+  host.appendChild(head);
+
+  roster.forEach(function(name){
+    const row=document.createElement("div"); row.className="avrow";
+    const top=document.createElement("div"); top.className="avtop";
+    const nm=document.createElement("div"); nm.className="avname"; nm.textContent=name;
+    top.appendChild(nm);
+    dates.forEach(function(d){
+      const b=document.createElement("button");
+      const v=avOf(name,d);
+      b.className="avcell"+(v?" "+v:"");
+      b.textContent = v==="A"?"A" : v==="C"?"?" : v==="X"?"X" : "—";
+      b.setAttribute("aria-label", name+" "+evShort(d));
+      b.addEventListener("click", function(){
+        const cur=avOf(name,d);
+        const nxt=AVCYCLE[(AVCYCLE.indexOf(cur)+1)%AVCYCLE.length];
+        setAv(name,d,nxt);
+        if(nxt==="X"||nxt===""){
+          dates.forEach(function(dd){
+            if(S.ev.asg[dd]) S.ev.asg[dd]=S.ev.asg[dd].filter(x=>x!==name||dd!==d);
+          });
+        }
+        renderStaff();
+      });
+      top.appendChild(b);
+    });
+    row.appendChild(top);
+    const note=document.createElement("input");
+    note.type="text"; note.className="avnote"; note.placeholder="note — reason, condition";
+    note.value=S.ev.note[name]||"";
+    note.addEventListener("input", function(e){ S.ev.note[name]=e.target.value; touch(); });
+    row.appendChild(note);
+    host.appendChild(row);
+  });
+}
+document.addEventListener("focusout", function(e){
+  if(pendingAvRender && e.target && e.target.closest && e.target.closest("#availGrid")){
+    pendingAvRender=false; setTimeout(renderAvail,50);
+  }
+});
+$("#btnClearAvail").addEventListener("click", function(){
+  const b=this;
+  if(b.dataset.armed==="1"){
+    S.ev.av={}; S.ev.note={}; S.ev.asg={};
+    b.dataset.armed="0"; b.textContent="Clear replies";
+    renderStaff(); touch(); toast("Replies cleared");
+  } else {
+    b.dataset.armed="1"; b.textContent="Tap again to clear";
+    setTimeout(function(){ b.dataset.armed="0"; b.textContent="Clear replies"; },4000);
+  }
+});
+
+/* ---- assignment ---- */
+function renderAssign(){
+  const host=$("#assignZone"); if(!host) return;
+  host.innerHTML="";
+  if(!S.ev.dates.length){ host.innerHTML='<span class="hint">Add a day to start assigning.</span>'; return; }
+  const nr=needRange();
+  S.ev.dates.forEach(function(d){
+    const blk=document.createElement("div"); blk.className="dayblk";
+    const picked=(S.ev.asg[d]||[]);
+    const firm=picked.filter(nm=>avOf(nm,d)==="A").length;
+    const soft=picked.length-firm;
+    const short = nr.min && firm<nr.min;
+    const h=document.createElement("h4");
+    h.innerHTML=escHtml(evDow(d))+" "+escHtml(evFmt(d))+' — <span class="cnt '+(short?"short":"ok")+'">'+firm+
+      (nr.min?(" of "+(nr.min===nr.max?nr.min:nr.min+"-"+nr.max)):"")+' firm</span>'+
+      (soft?' <span class="hint">+'+soft+' conditional</span>':'')+
+      (short?' <span class="hint" style="color:var(--amber)">short</span>':'');
+    blk.appendChild(h);
+    const chips=document.createElement("div"); chips.className="chips";
+    const roster=getRoster();
+    const pool=roster.filter(function(nm){ const v=avOf(nm,d); return v==="A"||v==="C"; });
+    if(!pool.length){
+      const sp=document.createElement("span"); sp.className="hint";
+      sp.textContent="Nobody marked available for this day yet.";
+      blk.appendChild(sp);
+    } else {
+      pool.forEach(function(nm){
+        const b=document.createElement("button"); b.type="button";
+        const cnd=avOf(nm,d)==="C";
+        b.textContent=surnameOf(nm)+(cnd?" ?":"");
+        b.className=(cnd?"cnd":"")+(picked.indexOf(nm)>=0?" on":"");
+        b.addEventListener("click", function(){
+          const arr=S.ev.asg[d]||[];
+          const i=arr.indexOf(nm);
+          if(i>=0) arr.splice(i,1); else arr.push(nm);
+          S.ev.asg[d]=arr;
+          renderAssign(); touch();
+        });
+        chips.appendChild(b);
+      });
+      blk.appendChild(chips);
+    }
+    const unheard=roster.filter(nm=>!avOf(nm,d));
+    if(unheard.length){
+      const sp=document.createElement("div"); sp.className="hint"; sp.style.marginTop="7px";
+      sp.textContent="No reply: "+unheard.map(surnameOf).join(", ");
+      blk.appendChild(sp);
+    }
+    host.appendChild(blk);
+  });
+}
+
+function renderStaff(){ renderEvDates(); renderAvail(); renderAssign(); }
+
+/* ---- text outputs ---- */
+function copyOut(text, label){
+  $("#evOut").value=text;
+  const done=function(){ toast(label+" copied"); };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(function(){ toast("Select the text below and copy"); });
+  } else {
+    try{ $("#evOut").select(); document.execCommand("copy"); done(); }
+    catch(e){ toast("Select the text below and copy"); }
+  }
+}
+function dayLabel(){
+  return S.ev.dates.map(evShort).join(" and ");
+}
+$("#btnAskText").addEventListener("click", function(){
+  const t=S.ev.title||"the detail", nr=needRange();
+  const need = S.ev.need ? S.ev.need+" medic"+(nr.max>1?"s":"")+" a day" : "medics";
+  let msg = dayLabel()+(S.ev.dates.length?" ":"")+"are the "+t+" days";
+  if(S.ev.loc) msg += " in "+S.ev.loc;
+  msg += " — we normally do "+need+".\n\nSend your availability when you can please and ty";
+  if(S.ev.time) msg += "\n\nReport time"+(S.ev.loc?" to "+S.ev.loc:"")+" is "+S.ev.time.replace(":","");
+  copyOut(msg, "Ask");
+});
+$("#btnStatusText").addEventListener("click", function(){
+  const roster=getRoster(), nr=needRange();
+  const lines=[];
+  if(S.ev.title) lines.push(S.ev.title.toUpperCase());
+  S.ev.dates.forEach(function(d){
+    const picked=S.ev.asg[d]||[];
+    const avail=roster.filter(nm=>avOf(nm,d)==="A" && picked.indexOf(nm)<0);
+    const cond=roster.filter(nm=>avOf(nm,d)==="C" && picked.indexOf(nm)<0);
+    const none=roster.filter(nm=>!avOf(nm,d));
+    const firm=picked.filter(nm=>avOf(nm,d)==="A");
+    const softAsg=picked.filter(nm=>avOf(nm,d)==="C");
+    let head=evDow(d)+" "+evShort(d)+" — "+firm.length;
+    if(nr.min) head += " of "+(nr.min===nr.max?nr.min:nr.min+"-"+nr.max);
+    head += " firm";
+    if(softAsg.length) head += " + "+softAsg.length+" conditional";
+    if(nr.min && firm.length<nr.min) head += "   ** SHORT **";
+    lines.push("");
+    lines.push(head);
+    if(firm.length) lines.push("  Confirmed: "+firm.map(surnameOf).join(", "));
+    if(softAsg.length) lines.push("  Conditional: "+softAsg.map(function(nm){
+      const nt=(S.ev.note[nm]||"").trim();
+      return surnameOf(nm)+(nt?" — "+nt:"");
+    }).join("; "));
+    if(avail.length)  lines.push("  Open: "+avail.map(surnameOf).join(", "));
+    if(cond.length)   lines.push("  Conditional, unassigned: "+cond.map(function(nm){
+      const nt=(S.ev.note[nm]||"").trim();
+      return surnameOf(nm)+(nt?" — "+nt:"");
+    }).join("; "));
+    if(none.length)   lines.push("  No reply: "+none.map(surnameOf).join(", "));
+  });
+  copyOut(lines.join("\n").trim(), "Status");
+});
+$("#btnSheetRow").addEventListener("click", function(){
+  if(!S.ev.dates.length){ toast("Add a day first"); return; }
+  const rows=S.ev.dates.map(function(d){
+    const picked=S.ev.asg[d]||[];
+    return [evFmt(d), S.ev.loc||"", S.ev.type||"", S.ev.req||"Full team",
+            picked.length?picked.map(surnameOf).join(", "):"Unfilled"].join("\t");
+  });
+  copyOut(rows.join("\n"), rows.length>1?"Attendance rows":"Attendance row");
+});
+$("#btnEvBackup").addEventListener("click", async function(){
+  const nm=(S.ev.title||"detail").replace(/[^\w]+/g,"_").slice(0,28)||"detail";
+  const blob=new Blob([JSON.stringify({kind:"tems_event", ev:S.ev, roster:getRoster()},null,1)],{type:"application/json"});
+  const fname="TEMS_"+nm+".json";
+  let shared=false;
+  if(navigator.canShare){
+    try{ const f=new File([blob],fname,{type:"application/json"});
+      if(navigator.canShare({files:[f]})){ await navigator.share({files:[f], title:fname}); shared=true; } }catch(e){}
+  }
+  if(!shared){
+    const u=URL.createObjectURL(blob);
+    const a=document.createElement("a"); a.href=u; a.download=fname;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(u),4000);
+  }
+  toast("Detail backed up");
+});
+
+/* ---- Claude-parsed replies ---- */
+$("#staffJson").addEventListener("change", function(e){
+  const f=e.target.files && e.target.files[0]; e.target.value=""; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=function(){
+    try{
+      const d=JSON.parse(rd.result);
+      if(!d || (d.kind!=="tems_event" && d.kind!=="tems_availability" && !d.ev && !d.availability)) throw new Error("bad file");
+      if(d.ev){ loadEvent(d.ev); toast("Detail loaded"); renderStaff(); touch(); return; }
+      const roster=getRoster();
+      const ev=d.event||{};
+      ["title","type","loc","time","need"].forEach(function(k){ if(ev[k]) S.ev[k]=ev[k]; });
+      if(Array.isArray(ev.dates) && ev.dates.length){ S.ev.dates=ev.dates.slice(0,6).sort(); }
+      let hit=0, miss=[];
+      (d.availability||[]).forEach(function(a){
+        if(!a||!a.name) return;
+        let name=roster.find(r=>r.toLowerCase()===String(a.name).toLowerCase());
+        if(!name){
+          const sur=surnameOf(a.name).toLowerCase();
+          name=roster.find(function(r){
+            const rs=surnameOf(r).toLowerCase();
+            return rs===sur || (typeof fuzzyHit==="function" && fuzzyHit(sur,rs));
+          });
+        }
+        if(!name){ miss.push(a.name); return; }
+        hit++;
+        if(a.note) S.ev.note[name]=a.note;
+        Object.keys(a.days||{}).forEach(function(dk){
+          const v=String(a.days[dk]||"").toUpperCase().charAt(0);
+          const st = v==="A"?"A" : (v==="C"||v==="?")?"C" : (v==="X"||v==="U"||v==="N")?"X" : "";
+          if(st) setAv(name, dk, st);
+        });
+      });
+      syncEvFields(); renderStaff(); touch();
+      toast(hit+" replies loaded"+(miss.length?" — unmatched: "+miss.join(", "):""));
+    }catch(err){ toast("Not a valid availability file"); }
+  };
+  rd.readAsText(f);
+});
+
+/* ---- field wiring ---- */
+const EVF={evTitle:"title", evType:"type", evLoc:"loc", evTime:"time", evNeed:"need"};
+Object.keys(EVF).forEach(function(id){
+  const el=$("#"+id); if(!el) return;
+  el.addEventListener("input", function(e){ S.ev[EVF[id]]=e.target.value; touch(); });
+});
+$("#evTypeChips").addEventListener("click", function(e){
+  const b=e.target.closest("button[data-val]"); if(!b) return;
+  const v=b.getAttribute("data-val");
+  S.ev.type = (S.ev.type===v) ? "" : v;
+  $("#evType").value=S.ev.type;
+  $$("#evTypeChips button").forEach(x=>x.classList.toggle("on", x.getAttribute("data-val")===S.ev.type));
+  touch();
+});
+function syncEvFields(){
+  Object.keys(EVF).forEach(function(id){ const el=$("#"+id); if(el) el.value=S.ev[EVF[id]]||""; });
+  $$("#evTypeChips button").forEach(x=>x.classList.toggle("on", x.getAttribute("data-val")===S.ev.type));
+  $$("#evReqSeg button").forEach(x=>x.classList.toggle("on", x.getAttribute("data-val")===(S.ev.req||"Full team")));
+}
+$("#evReqSeg").addEventListener("click", function(e){
+  const b=e.target.closest("button[data-val]"); if(!b) return;
+  S.ev.req=b.getAttribute("data-val");
+  $$("#evReqSeg button").forEach(x=>x.classList.toggle("on", x===b));
+  touch();
+});
+function loadEvent(ev){
+  S.ev={title:ev.title||"", type:ev.type||"", loc:ev.loc||"", time:ev.time||"", need:ev.need||"",
+        req:ev.req||"Full team", dates:(ev.dates||[]).slice(),
+        av:ev.av||{}, note:ev.note||{}, asg:ev.asg||{}};
+  syncEvFields();
+}
+
+/* ---- saved details ---- */
+function getEvents(){ if(!store) return []; try{ return JSON.parse(store.getItem(EVKEY)||"[]"); }catch(e){ return []; } }
+function putEvents(a){ if(!store) return; try{ store.setItem(EVKEY, JSON.stringify(a)); }catch(e){ toast("Device storage full"); } }
+function renderEvList(){
+  const host=$("#evList"); if(!host) return;
+  host.innerHTML="";
+  getEvents().forEach(function(sv,i){
+    const row=document.createElement("div"); row.className="saveitem";
+    const d=new Date(sv.ts);
+    row.innerHTML='<div><div class="nm">'+escHtml(sv.name)+'</div><div class="ts">'+
+      d.toLocaleDateString()+" "+d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})+'</div></div>'+
+      '<button data-a="load">Load</button><button data-a="del" aria-label="Delete">✕</button>';
+    row.querySelector('[data-a="load"]').addEventListener("click", function(){
+      loadEvent(sv.ev); renderStaff(); touch(); toast("Loaded — "+sv.name);
+    });
+    row.querySelector('[data-a="del"]').addEventListener("click", function(){
+      const a=getEvents(); a.splice(i,1); putEvents(a); renderEvList(); toast("Deleted");
+    });
+    host.appendChild(row);
+  });
+}
+$("#btnEvSave").addEventListener("click", function(){
+  if(!store){ toast("Saving is blocked in this viewer — use Backup file"); return; }
+  const name=($("#evSaveName").value.trim() || S.ev.title || "Detail "+new Date().toLocaleDateString());
+  const a=getEvents(); a.unshift({name:name, ts:Date.now(), ev:JSON.parse(JSON.stringify(S.ev))});
+  if(a.length>12) a.length=12;
+  putEvents(a); renderEvList(); $("#evSaveName").value="";
+  toast("Saved — "+name);
+});
+
+/* ---- view switch ---- */
+$("#viewTabs").addEventListener("click", function(e){
+  const b=e.target.closest("button[data-view]"); if(!b) return;
+  const v=b.getAttribute("data-view");
+  $$("#viewTabs button").forEach(x=>x.classList.toggle("on", x===b));
+  $("#viewSheet").hidden = v!=="sheet";
+  $("#viewStaff").hidden = v!=="staff";
+  $("#btnPdf").style.display = v==="sheet" ? "" : "none";
+  if(v==="staff") renderStaff();
+  else if(map) setTimeout(()=>map.invalidateSize(),60);
+  window.scrollTo(0,0);
+});
+
 /* boot */
-initMap();
+try{ initMap(); }
+catch(err){
+  map=null;
+  const mv=$("#map");
+  if(mv) mv.innerHTML='<div style="padding:16px; color:var(--dim); font-size:13px; line-height:1.5">'+
+    'Map library did not load — check signal, then reopen the app.<br>Everything else works offline; '+
+    'use <b>Screenshot</b> mode to plot markers on an image.</div>';
+}
 $("#btnRoads").addEventListener("click", function(){ setRoads(!S.roads); });
 $("#btnLabels").addEventListener("click", function(){ setLabels(!S.labels); });
 setLabels(true);
-map.on("dragend", function(){ mapMoved=true; });
-map.on("moveend", function(){ touch(); });
+if(map){
+  map.on("dragend", function(){ mapMoved=true; });
+  map.on("moveend", function(){ touch(); });
+}
 if(!store) $("#storeNote").hidden=false;
 if(store){
   const seeded=store.getItem(ROSTERKEY);
@@ -2203,6 +2702,7 @@ if(store){
   renderSaves();
 }
 renderRosterChips(); renderRosterEditor(); renderCaps(); updateRouteBar();
+syncEvFields(); renderStaff(); renderEvList();
 </script>
 </body>
 </html>
